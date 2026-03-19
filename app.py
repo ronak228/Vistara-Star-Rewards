@@ -593,6 +593,32 @@ def mark_stale():
         conn.close()
 
 
+# ── ADMIN: PING (login check — accepts POST) ──────────────────────────
+@app.route("/api/admin/ping", methods=["POST"])
+@require_admin
+def admin_ping():
+    """Used by admin.html to verify the secret is correct."""
+    conn = get_db()
+    counts = {}
+    if conn:
+        try:
+            with conn.cursor() as c:
+                c.execute("""SELECT
+                    COUNT(*) FILTER(WHERE status='pending')      AS pending,
+                    COUNT(*) FILTER(WHERE status='under_review') AS under_review,
+                    COUNT(*) FILTER(WHERE status='approved')     AS approved,
+                    COUNT(*) FILTER(WHERE status='rejected')     AS rejected,
+                    COUNT(*) FILTER(WHERE status='disputed')     AS disputed,
+                    COUNT(*) FILTER(WHERE status='stale')        AS stale
+                  FROM orders""")
+                counts = dict(c.fetchone() or {})
+        except Exception:
+            pass
+        finally:
+            conn.close()
+    return jsonify({"success": True, "counts": counts}), 200
+
+
 # ── ADMIN: ORDERS ─────────────────────────────────────────────────────
 @app.route("/api/admin/orders", methods=["GET"])
 @require_admin

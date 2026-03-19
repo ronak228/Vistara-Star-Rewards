@@ -222,25 +222,39 @@ function show(name, el) {
 }
 
 async function api(path, opts={}) {
-  const res = await fetch(path, {
-    headers: {'X-Admin-Secret': SECRET, 'Content-Type':'application/json', ...opts.headers},
-    ...opts
-  });
-  return res.json();
+  const method = opts.method || 'POST';
+  const headers = {'X-Admin-Secret': SECRET, ...opts.headers};
+  if (method !== 'GET' && !opts.headers?.['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(path, { ...opts, method, headers });
+  if (!res.ok && res.status === 405) return {success:false, error:'method_not_allowed'};
+  try { return await res.json(); } catch(e) { return {success:false, error:'parse_error'}; }
 }
 
 async function login() {
   SECRET = document.getElementById('secret').value.trim();
   if (!SECRET) return toast('Enter admin secret','err');
-  const r = await api('/api/admin/orders?limit=1');
-  if (!r.success) { toast('Wrong secret','err'); SECRET=''; return; }
-  document.getElementById('gate').style.display='none';
-  document.getElementById('main').style.display='block';
-  loadDashboard();
+  try {
+    const r = await api('/api/admin/ping');
+    if (!r.success) { toast('Wrong secret — check ADMIN_SECRET in Render env vars','err'); SECRET=''; return; }
+    document.getElementById('gate').style.display='none';
+    document.getElementById('main').style.display='block';
+    if (r.counts) {
+      document.getElementById('st-p').textContent = r.counts.pending||0;
+      document.getElementById('st-r').textContent = r.counts.under_review||0;
+      document.getElementById('st-a').textContent = r.counts.approved||0;
+      document.getElementById('st-j').textContent = r.counts.rejected||0;
+      document.getElementById('st-d').textContent = r.counts.disputed||0;
+    }
+    loadDashboard();
+  } catch(e) {
+    toast('Connection error — is the app running?','err'); SECRET='';
+  }
 }
 
 async function loadDashboard() {
-  const r = await api('/api/admin/orders?limit=200');
+  const r = await api('/api/admin/orders?limit=200', {method:'GET'});
   if (!r.success) return;
   const c = r.counts || {};
   document.getElementById('st-p').textContent = c.pending||0;
@@ -263,7 +277,7 @@ async function loadDashboard() {
   }
 
   // Sync status
-  const sl = await api('/api/admin/sync-logs');
+  const sl = await api('/api/admin/sync-logs', {method:'GET'});
   const last = (sl.sync_logs||[])[0];
   const si = document.getElementById('sync-info');
   if (last) {
@@ -276,7 +290,7 @@ async function loadDashboard() {
 
 async function loadOrders() {
   const sf = document.getElementById('status-filter').value;
-  const r  = await api(`/api/admin/orders?limit=150${sf?'&status='+sf:''}`);
+  const r  = await api(`/api/admin/orders?limit=150${sf?'&status='+sf:''}`, {method:'GET'});
   if (!r.success) return toast('Failed to load orders','err');
   const c = r.counts||{};
   document.getElementById('st-p').textContent = c.pending||0;
@@ -356,7 +370,7 @@ async function uploadCsv() {
 }
 
 async function loadSync() {
-  const r = await api('/api/admin/sync-logs');
+  const r = await api('/api/admin/sync-logs', {method:'GET'});
   const el = document.getElementById('sync-list');
   if (!r.success) { el.innerHTML='<p style="color:var(--danger)">Failed to load</p>'; return; }
   el.innerHTML = (r.sync_logs||[]).map(l=>`
@@ -375,7 +389,7 @@ async function loadSync() {
 }
 
 async function loadConfig() {
-  const r = await api('/api/admin/config');
+  const r = await api('/api/admin/config', {method:'GET'});
   if (!r.success) return;
   document.getElementById('config-body').innerHTML = (r.config||[]).map(c=>`
     <tr>

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vistara Admin</title>
+<style>
+:root {
+  --primary:#FF6B6B; --secondary:#4ECDC4; --success:#2ECC71;
+  --warning:#F39C12; --danger:#E74C3C;
+  --bg:#F8F9FA; --card:#FFFFFF; --text:#1A1A1A; --muted:#666; --border:#E0E0E0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+.sidebar{position:fixed;top:0;left:0;width:196px;height:100vh;background:#1A1A1A;color:#fff;padding:0}
+.logo{padding:18px 20px;font-weight:700;font-size:15px;color:var(--primary);border-bottom:1px solid #2a2a2a;letter-spacing:.3px}
+.nav a{display:block;padding:11px 20px;color:#bbb;text-decoration:none;transition:all .15s;font-size:13px}
+.nav a:hover,.nav a.active{background:#2a2a2a;color:#fff}
+.main{margin-left:196px;padding:22px;min-height:100vh}
+.hrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.hrow h1{font-size:20px;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:18px}
+.stat{background:var(--card);border-radius:10px;padding:14px 12px;border:1px solid var(--border);text-align:center}
+.stat-n{font-size:26px;font-weight:700}
+.stat-l{font-size:11px;color:var(--muted);margin-top:3px}
+.stat.pending .stat-n{color:var(--warning)}
+.stat.review  .stat-n{color:#3498db}
+.stat.approved .stat-n{color:var(--success)}
+.stat.rejected .stat-n{color:var(--danger)}
+.stat.disputed .stat-n{color:#9B59B6}
+.card{background:var(--card);border-radius:10px;padding:18px;border:1px solid var(--border);margin-bottom:14px}
+.card-t{font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text)}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-size:13px}
+th{background:#F8F9FA;font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+tr:hover td{background:#FAFAFA}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-pending  {background:#FEF3C7;color:#92400E}
+.badge-review   {background:#DBEAFE;color:#1E40AF}
+.badge-approved {background:#D1FAE5;color:#065F46}
+.badge-rejected {background:#FEE2E2;color:#991B1B}
+.badge-disputed {background:#EDE9FE;color:#5B21B6}
+.badge-stale    {background:#F1F5F9;color:#475569}
+.btn{padding:7px 14px;border:none;border-radius:7px;cursor:pointer;font-weight:600;font-size:12px;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#e05a5a}
+.btn-success{background:var(--success);color:#fff}.btn-success:hover{background:#27ae60}
+.btn-danger {background:var(--danger);color:#fff}.btn-danger:hover{background:#c0392b}
+.btn-secondary{background:#F1F5F9;color:var(--text);border:1px solid var(--border)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.form-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+.fgroup{display:flex;flex-direction:column;gap:3px}
+.fgroup label{font-size:11px;font-weight:600;color:var(--muted)}
+input,select{padding:7px 11px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:#fff}
+input:focus,select:focus{outline:none;border-color:var(--primary)}
+.log{border-left:3px solid var(--secondary);padding:8px 12px;margin-bottom:8px;background:#F0FFFE;border-radius:0 7px 7px 0}
+.log.err{border-color:var(--danger);background:#FEF2F2}
+.log-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.cfg-val{font-family:monospace;font-weight:700;color:var(--primary)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
+.dot.green{background:var(--success)}.dot.red{background:var(--danger)}
+.toast{position:fixed;bottom:18px;right:18px;padding:11px 18px;border-radius:9px;font-weight:600;color:#fff;background:#333;z-index:999;transform:translateY(80px);transition:transform .25s;font-size:13px}
+.toast.show{transform:translateY(0)}.toast.ok{background:var(--success)}.toast.err{background:var(--danger)}
+.section{display:none}.section.active{display:block}
+.tab{padding:9px 18px;cursor:pointer;border:none;background:none;font-weight:600;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.gate{background:var(--card);border-radius:12px;padding:32px;max-width:380px;margin:80px auto;border:1px solid var(--border)}
+.gate-t{font-size:17px;font-weight:700;margin-bottom:16px}
+.sync-info{font-size:12px;color:var(--muted)}
+.table-wrap{overflow-x:auto}
+.ready-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:7px;margin-bottom:7px;font-size:13px}
+@media(max-width:768px){.sidebar{display:none}.main{margin-left:0;padding:14px}}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="logo">⭐ Vistara Admin</div>
+  <div class="nav">
+    <a href="#" class="active" onclick="show('dashboard',this)">📊 Dashboard</a>
+    <a href="#" onclick="show('orders',this)">📦 Orders</a>
+    <a href="#" onclick="show('sync',this)">🔄 Sync Logs</a>
+    <a href="#" onclick="show('config',this)">⚙️ Config</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- Auth gate -->
+  <div id="gate" class="gate">
+    <div class="gate-t">🔐 Admin Login</div>
+    <div class="fgroup" style="margin-bottom:12px">
+      <label>Admin Secret</label>
+      <input type="password" id="secret" placeholder="Enter ADMIN_SECRET" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="login()">Login</button>
+  </div>
+
+  <!-- Main (hidden until authed) -->
+  <div id="main" style="display:none">
+
+    <div class="hrow">
+      <h1>Vistara Rewards Admin</h1>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="sync-info" id="sync-info">—</span>
+        <button class="btn btn-primary" onclick="triggerApprovals()">⚡ Run Approvals</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="show('dashboard',this)">Dashboard</button>
+      <button class="tab" onclick="show('orders',this)">Orders</button>
+      <button class="tab" onclick="show('sync',this)">Sync Logs</button>
+      <button class="tab" onclick="show('config',this)">Config</button>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="section-dashboard" class="section active">
+      <div class="stats">
+        <div class="stat pending" ><div class="stat-n" id="st-p">—</div><div class="stat-l">Pending</div></div>
+        <div class="stat review"  ><div class="stat-n" id="st-r">—</div><div class="stat-l">Under Review</div></div>
+        <div class="stat approved"><div class="stat-n" id="st-a">—</div><div class="stat-l">Approved</div></div>
+        <div class="stat rejected"><div class="stat-n" id="st-j">—</div><div class="stat-l">Rejected</div></div>
+        <div class="stat disputed"><div class="stat-n" id="st-d">—</div><div class="stat-l">Disputed</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Orders ready to approve</div>
+        <div id="ready-list"><p style="color:var(--muted);font-size:13px">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Upload Meesho CSV</div>
+        <p style="color:var(--muted);font-size:12px;margin-bottom:12px">
+          Download CSV from Meesho seller panel (last 45 days) → upload here daily. Takes ~10 seconds.
+        </p>
+        <div class="form-row">
+          <input type="file" id="csv-file" accept=".csv" style="flex:1">
+          <button class="btn btn-primary" onclick="uploadCsv()">Upload & Process</button>
+        </div>
+        <div id="csv-result"></div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div id="section-orders" class="section">
+      <div class="card">
+        <div class="form-row">
+          <div class="fgroup">
+            <label>Filter by status</label>
+            <select id="status-filter" onchange="loadOrders()">
+              <option value="">All</option>
+              <option value="pending">Pending</option>
+              <option value="under_review">Under Review</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="disputed">Disputed</option>
+              <option value="stale">Stale</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadOrders()">↺ Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order ID</th><th>Email</th><th>Status</th>
+                <th>CSV Status</th><th>Streak</th><th>Cooling left</th>
+                <th>Ready?</th><th>Submitted</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="orders-body">
+              <tr><td colspan="9" style="text-align:center;color:var(--muted)">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SYNC LOGS -->
+    <div id="section-sync" class="section">
+      <div class="card">
+        <div class="card-t">CSV Upload History</div>
+        <div id="sync-list"><p style="color:var(--muted);font-size:13px">Loading…</p></div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="section-config" class="section">
+      <div class="card">
+        <div class="card-t">System Configuration</div>
+        <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Changes apply immediately — no redeploy needed.</p>
+        <table>
+          <thead><tr><th>Key</th><th>Current value</th><th>Description</th><th>Edit</th></tr></thead>
+          <tbody id="config-body"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let SECRET = '';
+
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.className='toast', 3000);
+}
+
+function show(name, el) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab,.nav a').forEach(t=>t.classList.remove('active'));
+  document.getElementById('section-'+name).classList.add('active');
+  if (el) el.classList.add('active');
+  if (name==='orders') loadOrders();
+  if (name==='sync')   loadSync();
+  if (name==='config') loadConfig();
+}
+
+async function api(path, opts={}) {
+  const res = await fetch(path, {
+    headers: {'X-Admin-Secret': SECRET, 'Content-Type':'application/json', ...opts.headers},
+    ...opts
+  });
+  return res.json();
+}
+
+async function login() {
+  SECRET = document.getElementById('secret').value.trim();
+  if (!SECRET) return toast('Enter admin secret','err');
+  const r = await api('/api/admin/orders?limit=1');
+  if (!r.success) { toast('Wrong secret','err'); SECRET=''; return; }
+  document.getElementById('gate').style.display='none';
+  document.getElementById('main').style.display='block';
+  loadDashboard();
+}
+
+async function loadDashboard() {
+  const r = await api('/api/admin/orders?limit=200');
+  if (!r.success) return;
+  const c = r.counts || {};
+  document.getElementById('st-p').textContent = c.pending||0;
+  document.getElementById('st-r').textContent = c.under_review||0;
+  document.getElementById('st-a').textContent = c.approved||0;
+  document.getElementById('st-j').textContent = c.rejected||0;
+  document.getElementById('st-d').textContent = c.disputed||0;
+
+  const ready = (r.orders||[]).filter(o=>o.ready_to_approve);
+  const el = document.getElementById('ready-list');
+  if (!ready.length) {
+    el.innerHTML = '<p style="color:var(--muted);font-size:13px">No orders ready to approve yet. Upload a fresh CSV to check.</p>';
+  } else {
+    el.innerHTML = `<p style="color:var(--success);font-weight:600;margin-bottom:10px;font-size:13px">${ready.length} order(s) ready ✓</p>` +
+      ready.map(o=>`
+        <div class="ready-item">
+          <span><code style="font-size:12px">${o.order_id}</code> &nbsp; ${o.email}</span>
+          <button class="btn btn-success" onclick="approveOrder('${o.order_id}')">✓ Approve</button>
+        </div>`).join('');
+  }
+
+  // Sync status
+  const sl = await api('/api/admin/sync-logs');
+  const last = (sl.sync_logs||[])[0];
+  const si = document.getElementById('sync-info');
+  if (last) {
+    const h = Math.round((Date.now()-new Date(last.synced_at))/3600000);
+    si.innerHTML = `<span class="dot ${h<48?'green':'red'}"></span>Last sync: ${h}h ago`;
+  } else {
+    si.innerHTML = `<span class="dot red"></span>No CSV uploaded yet`;
+  }
+}
+
+async function loadOrders() {
+  const sf = document.getElementById('status-filter').value;
+  const r  = await api(`/api/admin/orders?limit=150${sf?'&status='+sf:''}`);
+  if (!r.success) return toast('Failed to load orders','err');
+  const c = r.counts||{};
+  document.getElementById('st-p').textContent = c.pending||0;
+  document.getElementById('st-r').textContent = c.under_review||0;
+  document.getElementById('st-a').textContent = c.approved||0;
+  document.getElementById('st-j').textContent = c.rejected||0;
+  document.getElementById('st-d').textContent = c.disputed||0;
+
+  const tb = document.getElementById('orders-body');
+  if (!r.orders.length) {
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No orders found</td></tr>';
+    return;
+  }
+  tb.innerHTML = r.orders.map(o=>`
+    <tr>
+      <td><code style="font-size:11px">${o.order_id}</code></td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${o.email}</td>
+      <td><span class="badge badge-${o.status}">${o.status}</span></td>
+      <td>${o.csv_last_status||'—'}</td>
+      <td style="text-align:center">${o.consecutive_delivered_count||0}</td>
+      <td>${o.days_left_in_cooling!=null ? o.days_left_in_cooling+'d' : '—'}</td>
+      <td style="text-align:center">${o.ready_to_approve?'✅':'—'}</td>
+      <td style="font-size:11px">${o.submitted_at?new Date(o.submitted_at).toLocaleDateString('en-IN'):'—'}</td>
+      <td style="display:flex;gap:5px">
+        ${o.ready_to_approve?`<button class="btn btn-success" onclick="approveOrder('${o.order_id}')">✓</button>`:''}
+        ${!['rejected','approved'].includes(o.status)?`<button class="btn btn-danger" onclick="rejectOrder('${o.order_id}')">✗</button>`:''}
+      </td>
+    </tr>`).join('');
+}
+
+async function approveOrder(oid) {
+  if (!confirm(`Approve ${oid}?`)) return;
+  const r = await api('/api/admin/update-order',{method:'POST',
+    body:JSON.stringify({order_id:oid,status:'approved',admin_note:'Manual admin approval'})});
+  if (r.success) { toast('✅ Approved!','ok'); loadDashboard(); loadOrders(); }
+  else toast('Failed: '+r.error,'err');
+}
+
+async function rejectOrder(oid) {
+  const reason = prompt('Rejection reason:');
+  if (!reason) return;
+  const r = await api('/api/admin/update-order',{method:'POST',
+    body:JSON.stringify({order_id:oid,status:'rejected',rejection_reason:reason})});
+  if (r.success) { toast('Rejected','ok'); loadOrders(); }
+  else toast('Failed: '+r.error,'err');
+}
+
+async function triggerApprovals() {
+  const r = await api('/api/admin/run-approvals');
+  if (r.success) { toast(`✅ ${r.approved_count} approved`,'ok'); loadDashboard(); }
+  else toast('Failed: '+r.error,'err');
+}
+
+async function uploadCsv() {
+  const file = document.getElementById('csv-file').files[0];
+  if (!file) return toast('Select a CSV file first','err');
+  const fd = new FormData(); fd.append('csv_file', file);
+  document.getElementById('csv-result').innerHTML = '<p style="color:var(--muted);font-size:12px;margin-top:8px">Processing…</p>';
+  const r = await fetch('/api/admin/upload-csv',{
+    method:'POST', headers:{'X-Admin-Secret':SECRET}, body:fd}).then(x=>x.json());
+  if (r.success) {
+    const s = r.stats;
+    document.getElementById('csv-result').innerHTML = `
+      <div style="margin-top:10px;padding:10px;background:#D1FAE5;border-radius:7px;font-size:12px">
+        ✅ Processed ${s.rows_processed} rows &nbsp;|&nbsp;
+        Matched: ${s.rows_matched} &nbsp;|&nbsp;
+        Delivered: ${s.rows_delivered} &nbsp;|&nbsp;
+        Returned: ${s.rows_returned} &nbsp;|&nbsp;
+        Approved: ${s.rows_approved}
+        ${s.rows_disputed?`&nbsp;|&nbsp; ⚠️ Disputed: ${s.rows_disputed}`:''}
+      </div>`;
+    loadDashboard();
+  } else {
+    document.getElementById('csv-result').innerHTML =
+      `<p style="color:var(--danger);margin-top:8px;font-size:12px">❌ ${r.error}</p>`;
+  }
+}
+
+async function loadSync() {
+  const r = await api('/api/admin/sync-logs');
+  const el = document.getElementById('sync-list');
+  if (!r.success) { el.innerHTML='<p style="color:var(--danger)">Failed to load</p>'; return; }
+  el.innerHTML = (r.sync_logs||[]).map(l=>`
+    <div class="log ${l.error_message?'err':''}">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <strong>${l.filename}</strong>
+        <span class="log-meta">${new Date(l.synced_at).toLocaleString('en-IN')}</span>
+      </div>
+      <div class="log-meta">
+        Matched: ${l.rows_matched} &nbsp;|&nbsp; Delivered: ${l.rows_delivered} &nbsp;|&nbsp;
+        Returned: ${l.rows_returned} &nbsp;|&nbsp; Approved: ${l.rows_approved}
+        ${l.rows_disputed?`&nbsp;|&nbsp; Disputed: ${l.rows_disputed}`:''}
+      </div>
+      ${l.error_message?`<div style="color:var(--danger);font-size:11px;margin-top:3px">${l.error_message}</div>`:''}
+    </div>`).join('') || '<p style="color:var(--muted);font-size:13px">No uploads yet</p>';
+}
+
+async function loadConfig() {
+  const r = await api('/api/admin/config');
+  if (!r.success) return;
+  document.getElementById('config-body').innerHTML = (r.config||[]).map(c=>`
+    <tr>
+      <td><code style="font-size:12px">${c.key}</code></td>
+      <td class="cfg-val" id="v-${c.key}">${c.value}</td>
+      <td style="color:var(--muted);font-size:12px">${c.description||''}</td>
+      <td style="display:flex;gap:6px;align-items:center">
+        <input id="i-${c.key}" value="${c.value}" style="width:70px;padding:5px 8px">
+        <button class="btn btn-primary" onclick="saveConfig('${c.key}')">Save</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function saveConfig(key) {
+  const val = document.getElementById('i-'+key).value.trim();
+  const r = await api('/api/admin/config',{method:'POST',body:JSON.stringify({key,value:val})});
+  if (r.success) { document.getElementById('v-'+key).textContent=val; toast('Saved','ok'); }
+  else toast('Failed: '+r.error,'err');
+}
+</script>
+</body>
+</html>

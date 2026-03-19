@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vistara Rewards – Earn Stars on Every Purchase</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <!-- ===== LANGUAGE POPUP ===== -->
+    <div class="lang-popup-overlay" id="langPopup">
+        <div class="lang-popup-card">
+            <span class="lang-popup-icon">🌐</span>
+            <h2 class="lang-popup-title" data-i18n="popupTitle">Select Language</h2>
+            <p class="lang-popup-subtitle" data-i18n="popupSubtitle">भाषा चुनें</p>
+            <div class="lang-buttons">
+                <button class="lang-btn lang-btn-en" onclick="LangManager.setLang('en')">English</button>
+                <button class="lang-btn lang-btn-hi" onclick="LangManager.setLang('hi')">हिंदी</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">✨</span>
+                    <span class="logo-text">Vistara Rewards</span>
+                </div>
+                <div class="header-right">
+                    <nav class="nav">
+                        <a href="/" class="nav-link active" data-i18n="navHome">Home</a>
+                        <a href="/check-stars" class="nav-link" data-i18n="navCheckStars">Check Stars</a>
+                    </nav>
+                    <button class="lang-toggle-btn" id="langToggleBtn" onclick="LangManager.showPopup()">हिंदी</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== HERO ===== -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-visual">
+                    <div class="star-animation">
+                        <div class="star star-1">⭐</div>
+                        <div class="star star-2">⭐</div>
+                        <div class="star star-3">⭐</div>
+                        <div class="star star-4">⭐</div>
+                        <div class="star star-5">⭐</div>
+                    </div>
+                    <div class="gift-box">🎁</div>
+                </div>
+
+                <div class="hero-text">
+                    <h1 class="hero-title">
+                        <span data-i18n="heroTitle1">Unlock Your</span>
+                        <span class="highlight" data-i18n="heroHighlight">Reward Stars</span>
+                        <span class="emoji-large">⭐</span>
+                    </h1>
+                    <p class="hero-subtitle" data-i18n="heroSubtitle">
+                        Earn rewards on every purchase for your kids. Every order brings you closer to exclusive gifts!
+                    </p>
+                    <div class="hero-cta">
+                        <button class="btn btn-primary btn-lg" onclick="scrollToForm()">
+                            <span data-i18n="heroCta">Submit Your Order</span>
+                            <span>→</span>
+                        </button>
+                    </div>
+                    <div class="hero-badges">
+                        <span class="hero-badge">
+                            <span class="hero-badge-icon">⭐</span>
+                            <span data-i18n="badge1">1 Order = 1 Star</span>
+                        </span>
+                        <span class="hero-badge">
+                            <span class="hero-badge-icon">🎁</span>
+                            <span data-i18n="badge2">5 Stars = Free Gift</span>
+                        </span>
+                        <span class="hero-badge">
+                            <span class="hero-badge-icon">🔒</span>
+                            <span data-i18n="badge3">Secure & Verified</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== HOW IT WORKS ===== -->
+    <section class="rewards-info">
+        <div class="container">
+            <h2 class="section-title" data-i18n="howItWorksTitle">How It Works</h2>
+            <div class="rewards-grid">
+                <div class="reward-card">
+                    <div class="reward-icon">⭐</div>
+                    <h3 data-i18n="howCard1Title">1 Order = 1 Star</h3>
+                    <p data-i18n="howCard1Desc">Every purchase you make earns you one reward star</p>
+                </div>
+                <div class="reward-card">
+                    <div class="reward-icon">🎁</div>
+                    <h3 data-i18n="howCard2Title">5 Stars = Free Gift</h3>
+                    <p data-i18n="howCard2Desc">Collect 5 stars and claim your first reward gift</p>
+                </div>
+                <div class="reward-card">
+                    <div class="reward-icon">🎉</div>
+                    <h3 data-i18n="howCard3Title">10 Stars = Premium Gift</h3>
+                    <p data-i18n="howCard3Desc">Reach 10 stars for an exclusive premium gift</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== FORM SECTION ===== -->
+    <section class="form-section" id="formSection">
+        <div class="container">
+            <div class="form-wrapper">
+                <div class="form-header">
+                    <h2 class="form-title" data-i18n="formTitle">Submit Your Order</h2>
+                    <p class="form-subtitle" data-i18n="formSubtitle">Quick and easy – takes less than 2 minutes</p>
+                </div>
+
+                <form id="orderForm" class="order-form">
+
+                    <div class="form-group">
+                        <label for="name" class="form-label">
+                            <span data-i18n="labelName">Your Name</span>
+                            <span class="required">*</span>
+                        </label>
+                        <input type="text" id="name" name="name" class="form-input"
+                            data-i18n="placeholderName" data-i18n-attr="placeholder"
+                            placeholder="e.g., Priya Sharma" required>
+                        <span class="error-message" id="nameError"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email" class="form-label">
+                            <span data-i18n="labelEmail">Email Address</span>
+                            <span class="required">*</span>
+                        </label>
+                        <input type="email" id="email" name="email" class="form-input"
+                            placeholder="your.email@example.com" required>
+                        <span class="error-message" id="emailError"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="order_id" class="form-label">
+                            <span data-i18n="labelOrderId">Order ID</span>
+                            <span class="required">*</span>
+                        </label>
+                        <input type="text" id="order_id" name="order_id" class="form-input"
+                            data-i18n="placeholderOrderId" data-i18n-attr="placeholder"
+                            placeholder="e.g., ORD-123456" required>
+                        <span class="error-message" id="orderIdError"></span>
+                        <small class="form-hint" data-i18n="orderIdHint">You can find this in your order confirmation email</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="order_screenshot" class="form-label">
+                            <span data-i18n="labelOrderScreenshot">Order Screenshot</span>
+                            <span class="required">*</span>
+                        </label>
+                        <div class="file-upload">
+                            <input type="file" id="order_screenshot" name="order_screenshot"
+                                class="file-input" accept="image/*" required>
+                            <div class="file-upload-content">
+                                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <p class="upload-text" data-i18n="uploadText">Tap to upload screenshot</p>
+                                <p class="upload-hint" data-i18n="uploadHint">PNG, JPG or GIF (max. 5MB)</p>
+                            </div>
+                        </div>
+                        <span class="error-message" id="orderScreenshotError"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rating_screenshot" class="form-label">
+                            <span data-i18n="labelRatingScreenshot">Rating Screenshot</span>
+                            <span class="optional" data-i18n="optional">(Optional)</span>
+                        </label>
+                        <div class="file-upload">
+                            <input type="file" id="rating_screenshot" name="rating_screenshot"
+                                class="file-input" accept="image/*">
+                            <div class="file-upload-content">
+                                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <p class="upload-text" data-i18n="uploadText">Tap to upload screenshot</p>
+                                <p class="upload-hint" data-i18n="uploadHint">PNG, JPG or GIF (max. 5MB)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
+                        <span data-i18n="submitBtn">Unlock My Stars ⭐</span>
+                    </button>
+                </form>
+
+                <!-- Success Modal -->
+                <div class="modal" id="successModal">
+                    <div class="modal-content">
+                        <div class="modal-header success-header">
+                            <div class="success-icon">✅</div>
+                            <h3 class="modal-title" id="successModalTitle">Submission Received!</h3>
+                        </div>
+                        <div class="modal-body">
+                            <p class="success-message" id="successModalMsg">Your order has been successfully submitted.</p>
+                            <div class="token-display">
+                                <p class="token-label" id="tokenLabelEl">Your Reward Token</p>
+                                <div class="token-box">
+                                    <code id="tokenValue"></code>
+                                    <button type="button" class="btn btn-copy" id="copyBtnEl" onclick="copyToken()">Copy</button>
+                                </div>
+                            </div>
+                            <div class="stars-display">
+                                <p class="stars-label" id="starsLabelEl">Total Stars Earned</p>
+                                <div id="starsCount" class="stars-count">⭐</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" id="continueBtnEl" onclick="closeModal()">Continue Shopping</button>
+                            <a href="/check-stars" class="btn btn-primary" id="checkStarsBtnEl">Check My Stars</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Modal -->
+                <div class="modal" id="errorModal">
+                    <div class="modal-content">
+                        <div class="modal-header error-header">
+                            <div class="error-icon">⚠️</div>
+                            <h3 class="modal-title" id="errorModalTitle">Submission Failed</h3>
+                        </div>
+                        <div class="modal-body">
+                            <p id="errorMessage" class="error-message-text"></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" id="tryAgainBtnEl" onclick="closeErrorModal()">Try Again</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== TRUST SECTION ===== -->
+    <section class="trust-section">
+        <div class="container">
+            <h2 class="section-title" data-i18n="trustTitle">Why Trust Vistara Rewards?</h2>
+            <div class="trust-grid">
+                <div class="trust-card">
+                    <div class="trust-icon">🔒</div>
+                    <h3 data-i18n="trust1Title">Safe & Secure</h3>
+                    <p data-i18n="trust1Desc">Your data is encrypted and protected with industry-standard security</p>
+                </div>
+                <div class="trust-card">
+                    <div class="trust-icon">✓</div>
+                    <h3 data-i18n="trust2Title">Trusted by Customers</h3>
+                    <p data-i18n="trust2Desc">Thousands of happy families earning rewards every month</p>
+                </div>
+                <div class="trust-card">
+                    <div class="trust-icon">⭐</div>
+                    <h3 data-i18n="trust3Title">Verified Rewards</h3>
+                    <p data-i18n="trust3Desc">100% authentic rewards program backed by Vistara</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p data-i18n="footerCopy">© 2024 Vistara Rewards. All rights reserved.</p>
+                <div class="footer-links">
+                    <a href="#" data-i18n="privacyPolicy">Privacy Policy</a>
+                    <a href="#" data-i18n="termsOfService">Terms of Service</a>
+                    <a href="#" data-i18n="contactUs">Contact Us</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

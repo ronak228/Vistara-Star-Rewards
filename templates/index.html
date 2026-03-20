@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vistara Rewards – Earn Stars on Every Purchase</title>
+    <title>Vistara Essentials – Earn Stars on Every Purchase</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -26,10 +26,10 @@
     <header class="header">
         <div class="container">
             <div class="header-content">
-                <div class="logo">
+                <a href="/" class="logo" aria-label="Vistara Essentials Home">
                     <span class="logo-icon">✨</span>
-                    <span class="logo-text">Vistara Rewards</span>
-                </div>
+                    <span class="logo-text">Vistara Essentials</span>
+                </a>
                 <div class="header-right">
                     <nav class="nav">
                         <a href="/" class="nav-link active" data-i18n="navHome">Home</a>
@@ -153,9 +153,13 @@
                         </label>
                         <input type="text" id="order_id" name="order_id" class="form-input"
                             data-i18n="placeholderOrderId" data-i18n-attr="placeholder"
-                            placeholder="e.g., ORD-123456" required>
+                            placeholder="e.g., 265437129718567616_1"
+                            autocomplete="off"
+                            inputmode="text"
+                            pattern="\d{15,19}_\d{1,2}"
+                            required>
                         <span class="error-message" id="orderIdError"></span>
-                        <small class="form-hint" data-i18n="orderIdHint">You can find this in your order confirmation email</small>
+                        <small class="form-hint" data-i18n="orderIdHint">Find this in Meesho app → My Orders → tap order → Order ID (e.g., 265437129718567616_1)</small>
                     </div>
 
                     <div class="form-group">
@@ -247,6 +251,184 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ===== ORDER ID CONFIRM MODAL ===== -->
+                <div class="modal" id="orderIdConfirmModal">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background:rgba(255,107,107,.08)">
+                            <div style="font-size:2.2rem;margin-bottom:10px">🔍</div>
+                            <h3 class="modal-title" data-i18n="orderIdConfirmTitle">Confirm Your Order ID</h3>
+                        </div>
+                        <div class="modal-body">
+                            <p style="color:var(--text-secondary);margin-bottom:18px;font-size:.97rem" data-i18n="orderIdConfirmMsg">
+                                Please verify this is the exact Order ID from your Meesho app. A wrong ID means no star will be given.
+                            </p>
+                            <div style="background:#F8F9FA;border-radius:10px;padding:16px;margin-bottom:16px;text-align:center;border:2px dashed #FF6B6B">
+                                <p style="font-size:11px;color:var(--text-light);margin-bottom:6px;font-weight:600;letter-spacing:.5px">YOUR ORDER ID</p>
+                                <code id="confirmOrderIdDisplay" style="font-size:1.2rem;font-weight:700;color:#FF6B6B;letter-spacing:1px;word-break:break-all"></code>
+                            </div>
+                            <div style="background:#FFF3CD;border-radius:8px;padding:12px;border-left:4px solid #F39C12;font-size:.88rem;font-weight:600;color:#856404" data-i18n="orderIdConfirmWarning">
+                                ⚠️ Wrong Order ID = No Star — please double-check!
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="flex-direction:column;gap:10px">
+                            <button type="button" class="btn btn-primary" onclick="confirmOrderId()" style="width:100%;background:linear-gradient(135deg,#2ECC71,#27AE60)">
+                                <span data-i18n="orderIdYesCorrect">Yes, it's correct ✓</span>
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="reenterOrderId()" style="width:100%">
+                                <span data-i18n="orderIdReenter">Re-enter Order ID</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== MILESTONE WHATSAPP BANNER ===== -->
+    <div class="milestone-banner" id="milestoneBanner" style="display:none">
+        <div class="container">
+            <div class="milestone-inner">
+                <span class="milestone-emoji" id="milestoneEmoji">🎉</span>
+                <div class="milestone-text">
+                    <strong id="milestoneTitle">Congratulations!</strong>
+                    <span id="milestoneMsg">You've earned a reward!</span>
+                </div>
+                <a id="milestoneWhatsapp" href="#" target="_blank" class="btn btn-whatsapp">
+                    <span>💬</span>
+                    <span data-i18n="claimWhatsapp">Claim on WhatsApp</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== HOW IT WORKS — 4 STEPS ===== -->
+    <section class="steps-section">
+        <div class="container">
+            <h2 class="section-title" data-i18n="stepsTitle">How to Earn Stars & Win Prizes</h2>
+            <p class="section-subtitle" data-i18n="stepsSubtitle">Follow these 4 simple steps</p>
+            <div class="steps-grid">
+
+                <!-- Step 1: Follow -->
+                <div class="step-card">
+                    <div class="step-num">1</div>
+                    <div class="step-icon">🏪</div>
+                    <h3 data-i18n="step1Title">Follow Our Shop</h3>
+                    <p data-i18n="step1Desc">Find and follow Vistara Essentials on Meesho. Tap the link below to visit our store</p>
+                    <a href="https://www.meesho.com/VistaraEssentials?_ms=3.0.1"
+                       target="_blank" class="step-shop-btn" data-i18n="visitShop">
+                        Visit Our Meesho Store →
+                    </a>
+                </div>
+
+                <!-- Step 2: Order -->
+                <div class="step-card">
+                    <div class="step-num">2</div>
+                    <div class="step-icon">🛍️</div>
+                    <h3 data-i18n="step2Title">Place Your Order</h3>
+                    <p data-i18n="step2Desc">Order any product from our Meesho store and submit the Order ID here after purchase</p>
+                </div>
+
+                <!-- Step 3: Get Star -->
+                <div class="step-card">
+                    <div class="step-num">3</div>
+                    <div class="step-icon">⭐</div>
+                    <h3 data-i18n="step3Title">Get Your Star</h3>
+                    <p data-i18n="step3Desc">Upload your order screenshot. Once delivery is confirmed, your star is credited within 14-21 days</p>
+                </div>
+
+                <!-- Step 4: Win -->
+                <div class="step-card step-card-highlight">
+                    <div class="step-num">4</div>
+                    <div class="step-icon">🏆</div>
+                    <h3 data-i18n="step4Title">Win Amazing Prizes</h3>
+                    <p data-i18n="step4Desc">5 Stars = Free Gift 🎁 | 10 Stars = Premium Prize 🏆 | Rate us for lucky draw entry!</p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== SHARE & WIN ===== -->
+    <section class="share-section">
+        <div class="container">
+            <div class="share-card">
+                <div class="share-badge">🏆 Monthly Lucky Draw</div>
+                <h2 data-i18n="shareTitle">Share Your Review & Win!</h2>
+                <p data-i18n="shareDesc">Rate our product on Meesho, share the screenshot on WhatsApp or Instagram, and enter our monthly lucky draw for prizes worth ₹500+</p>
+                <div class="share-prizes">
+                    <div class="prize-item">
+                        <span class="prize-emoji">🥇</span>
+                        <span data-i18n="prize1">1st Prize: ₹500 Gift Voucher</span>
+                    </div>
+                    <div class="prize-item">
+                        <span class="prize-emoji">🥈</span>
+                        <span data-i18n="prize2">2nd Prize: Free Premium Product</span>
+                    </div>
+                    <div class="prize-item">
+                        <span class="prize-emoji">🥉</span>
+                        <span data-i18n="prize3">3rd Prize: Extra Reward Stars</span>
+                    </div>
+                </div>
+                <a id="shareWhatsappBtn" href="#" target="_blank" class="btn btn-whatsapp btn-lg" style="margin-top:20px">
+                    <span data-i18n="shareWhatsapp">📲 Share on WhatsApp to Enter</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== SUPPORT / CONTACT ===== -->
+    <section class="support-section">
+        <div class="container">
+            <div class="support-card">
+                <div class="support-header">
+                    <div class="support-icon-wrap">💬</div>
+                    <div>
+                        <h2 data-i18n="supportTitle">Need Help? Contact Us on WhatsApp</h2>
+                        <p data-i18n="supportDesc">If your stars haven't appeared after 21 days, or you've reached 5/10 stars and want to claim — message us with your token</p>
+                    </div>
+                </div>
+
+                <div class="support-token-box">
+                    <div class="support-token-label">
+                        <span>🎫</span>
+                        <span data-i18n="supportTokenLabel">Your Reward Token</span>
+                    </div>
+                    <div class="support-token-demo">VST-XXXX</div>
+                    <p class="support-token-hint">Save this after submitting your order</p>
+                </div>
+
+                <div class="support-steps">
+                    <div class="support-step">
+                        <span class="support-step-num">1</span>
+                        <div>
+                            <strong>Save Your Token</strong>
+                            <span data-i18n="supportStep1">After submitting, you receive a Reward Token (e.g. VST-1234) — save it</span>
+                        </div>
+                    </div>
+                    <div class="support-step">
+                        <span class="support-step-num">2</span>
+                        <div>
+                            <strong>Message Us</strong>
+                            <span data-i18n="supportStep2">Open WhatsApp → tap our number → send your Token + Email</span>
+                        </div>
+                    </div>
+                    <div class="support-step">
+                        <span class="support-step-num">3</span>
+                        <div>
+                            <strong>Get Your Reward</strong>
+                            <span data-i18n="supportStep3">We verify within 24 hours and process your reward or star credit</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="support-cta">
+                    <a id="supportWhatsappBtn" href="#" target="_blank" class="btn btn-whatsapp btn-lg">
+                        <span data-i18n="contactWhatsapp">💬 Chat on WhatsApp Now</span>
+                    </a>
+                    <p class="support-response-time">⚡ Usually responds within 24 hours</p>
+                </div>
             </div>
         </div>
     </section>
@@ -254,7 +436,7 @@
     <!-- ===== TRUST SECTION ===== -->
     <section class="trust-section">
         <div class="container">
-            <h2 class="section-title" data-i18n="trustTitle">Why Trust Vistara Rewards?</h2>
+            <h2 class="section-title" data-i18n="trustTitle">Why Trust Vistara Essentials?</h2>
             <div class="trust-grid">
                 <div class="trust-card">
                     <div class="trust-icon">🔒</div>
@@ -269,7 +451,7 @@
                 <div class="trust-card">
                     <div class="trust-icon">⭐</div>
                     <h3 data-i18n="trust3Title">Verified Rewards</h3>
-                    <p data-i18n="trust3Desc">100% authentic rewards program backed by Vistara</p>
+                    <p data-i18n="trust3Desc">100% authentic rewards program backed by Vistara Essentials</p>
                 </div>
             </div>
         </div>
@@ -279,7 +461,7 @@
     <footer class="footer">
         <div class="container">
             <div class="footer-content">
-                <p data-i18n="footerCopy">© 2024 Vistara Rewards. All rights reserved.</p>
+                <p data-i18n="footerCopy">© 2025 Vistara Essentials. All rights reserved.</p>
                 <div class="footer-links">
                     <a href="#" data-i18n="privacyPolicy">Privacy Policy</a>
                     <a href="#" data-i18n="termsOfService">Terms of Service</a>

@@ -1,20 +1,12 @@
-"""
-app.py — Vistara Rewards (Production, Free-Plan Edition)
-=========================================================
-Free services used:
-  Render free      — Flask hosting (kept awake by UptimeRobot)
-  Supabase free    — PostgreSQL (project: fqsvksjhphutjnkvgnmk, region: ap-south-1)
-  Cloudflare R2    — Screenshot storage (free 10 GB)
-  GitHub Actions   — Daily cron automation (free 2000 min/month)
-  UptimeRobot free — Pings /health every 5 min to keep Render awake
-
-CSS FIX: static/css/style.css  ← templates reference 'css/style.css' ✓
-"""
+# app.py - Vistara Rewards (Production, Free-Plan Edition)
+# Free services: Render + Supabase + Cloudflare R2 + GitHub Actions + UptimeRobot
+# CSS: static/css/style.css
 
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import os, random, string, hashlib, logging, tempfile
 from datetime import datetime, timezone
+import re
 import psycopg
 from psycopg.rows import dict_row
 from werkzeug.utils import secure_filename
@@ -34,6 +26,10 @@ MAX_FILE_BYTES   = int(os.getenv("MAX_CONTENT_LENGTH", str(5 * 1024 * 1024)))
 ALLOWED_EXTS     = {"png", "jpg", "jpeg", "gif", "webp"}
 RATE_WIN_MIN     = int(os.getenv("RATE_LIMIT_WINDOW_MINUTES", "60"))
 RATE_MAX_REQ     = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "5"))
+
+# Meesho Order ID — only valid format: 15-19 digits, underscore, 1-2 digits
+# Example: 265437129718567616_1
+MEESHO_ORDER_ID_REGEX = re.compile(r'^\d{15,19}_\d{1,2}$')
 
 # Cloudflare R2 (free 10 GB — S3-compatible)
 R2_ON            = os.getenv("R2_ENABLED", "false").lower() == "true"
@@ -361,123 +357,259 @@ def admin():        return render_template("admin.html")
 # ── API: SUBMIT ORDER ─────────────────────────────────────────────────
 @app.route("/api/submit", methods=["POST"])
 def submit():
-    ip = client_ip();  uh = ua_hash()
+    ip = client_ip()
+    uh = ua_hash()
+
+    # ── LAYER 1: File size check (before anything else) ──────────────────
+    content_len = request.content_length or 0
+    if content_len > MAX_FILE_BYTES:
+        return jsonify({"success": False, "error": "Request too large. Max 5MB allowed."}), 413
+
+    # ── LAYER 2: Extract and sanitise inputs ─────────────────────────────
+    name     = (request.form.get("name", "") or "").strip()
+    email    = (request.form.get("email", "") or "").strip().lower()
+    order_id = (request.form.get("order_id", "") or "").strip()
+
+    # ── LAYER 3: Field presence check ────────────────────────────────────
+    if not name or not email or not order_id:
+        return jsonify({"success": False, "error": "All fields are required."}), 400
+
+    # ── LAYER 4: Name validation ──────────────────────────────────────────
+    if len(name) < 2:
+        return jsonify({"success": False, "error": "Name must be at least 2 characters."}), 400
+    if len(name) > 100:
+        return jsonify({"success": False, "error": "Name too long."}), 400
+    if not re.match(r'^[ऀ-ॿ਀-੿଀-୿a-zA-Z\s.\'-]+$', name):
+        return jsonify({"success": False, "error": "Name contains invalid characters."}), 400
+
+    # ── LAYER 5: Email validation ─────────────────────────────────────────
+    if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', email):
+        return jsonify({"success": False, "error": "Invalid email address."}), 400
+    if len(email) > 254:
+        return jsonify({"success": False, "error": "Email address too long."}), 400
+
+    # ── LAYER 6: Meesho Order ID format validation ────────────────────────
+    # Only valid format: 15-19 digits, underscore, 1-2 digits
+    # Example: 265437129718567616_1
+    if not MEESHO_ORDER_ID_REGEX.match(order_id):
+        return jsonify({"success": False,
+            "error": "Invalid Order ID format. Meesho Order IDs look like: 265437129718567616_1"}), 400
+
+    # ── LAYER 7: Screenshot file validation ───────────────────────────────
+    of = request.files.get("order_screenshot")
+    if not of or not of.filename:
+        return jsonify({"success": False, "error": "Order screenshot is required."}), 400
+    if not ok_ext(of.filename):
+        return jsonify({"success": False, "error": "Screenshot must be PNG, JPG, GIF or WEBP."}), 400
+    # Read file to check actual size and magic bytes
+    file_bytes = of.read()
+    if len(file_bytes) == 0:
+        return jsonify({"success": False, "error": "Screenshot file is empty."}), 400
+    if len(file_bytes) > MAX_FILE_BYTES:
+        return jsonify({"success": False, "error": "Screenshot too large. Max 5MB."}), 413
+    # Validate magic bytes (actual file type, not just extension)
+    MAGIC = {
+        b'\xff\xd8\xff': "jpg",      # JPEG
+        b'\x89PNG':        "png",      # PNG
+        b'GIF8':           "gif",      # GIF
+        b'RIFF':           "webp",     # WEBP (starts with RIFF)
+    }
+    file_type_valid = any(file_bytes[:len(sig)] == sig for sig in MAGIC)
+    if not file_type_valid:
+        return jsonify({"success": False, "error": "File does not appear to be a valid image."}), 400
+    # Seek back so we can save it
+    of.seek(0)
+
+    conn = get_db()
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable. Try again shortly."}), 500
+
     try:
-        name     = request.form.get("name","").strip()
-        email    = request.form.get("email","").strip().lower()
-        order_id = request.form.get("order_id","").strip()
-        if not name or not email or not order_id:
-            return jsonify({"success":False,"error":"All fields required"}),400
-        if "@" not in email or "." not in email.split("@")[-1]:
-            return jsonify({"success":False,"error":"Invalid email"}),400
-        of = request.files.get("order_screenshot")
-        if not of or not of.filename:
-            return jsonify({"success":False,"error":"Order screenshot required"}),400
-        if not ok_ext(of.filename):
-            return jsonify({"success":False,"error":"Invalid file type"}),400
+        with conn.cursor() as c:
 
-        conn = get_db()
-        if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
-        try:
+            # ── LAYER 8: Check if IP is blocked ───────────────────────────
+            c.execute("""SELECT 1 FROM blocked_entities
+                         WHERE entity_type='ip' AND value=%s LIMIT 1""", (ip,))
+            if c.fetchone():
+                log.warning("blocked_ip attempt ip=%s order_id=%s", ip, order_id)
+                return jsonify({"success": False,
+                    "error": "Access denied. Contact support if you believe this is an error."}), 403
+
+            # ── LAYER 9: Check if email is blocked ────────────────────────
+            c.execute("""SELECT 1 FROM blocked_entities
+                         WHERE entity_type='email' AND lower(value)=lower(%s) LIMIT 1""", (email,))
+            if c.fetchone():
+                log.warning("blocked_email attempt email=%s order_id=%s", mask(email), order_id)
+                return jsonify({"success": False,
+                    "error": "This email has been restricted. Contact support."}), 403
+
+            # ── LAYER 10: Rate limit by IP (5 submissions per hour) ───────
             if not check_rate(conn, ip, "ip"):
-                return jsonify({"success":False,"error":"Too many requests — wait an hour"}),429
-            if not check_rate(conn, email, "email"):
-                return jsonify({"success":False,"error":"Too many submissions from this email"}),429
-            with conn.cursor() as c:
-                c.execute("SELECT status FROM orders WHERE order_id=%s",(order_id,))
-                if c.fetchone():
-                    return jsonify({"success":False,"error":"This order has already been submitted."}),409
+                _log_attempt(conn, ip, email, order_id, blocked=True)
+                return jsonify({"success": False,
+                    "error": "Too many submissions from your device. Please wait an hour."}), 429
 
-            pfx  = random.randint(10000,99999)
-            op   = save_file(of, f"{pfx}_{secure_filename(of.filename)}")
-            rp   = None
-            rf   = request.files.get("rating_screenshot")
-            if rf and rf.filename and ok_ext(rf.filename):
+            # ── LAYER 11: Rate limit by email (3 submissions per hour) ────
+            if not check_rate(conn, email, "email"):
+                _log_attempt(conn, ip, email, order_id, blocked=True)
+                return jsonify({"success": False,
+                    "error": "Too many submissions from this email. Please wait an hour."}), 429
+
+            # ── LAYER 12: Check daily submission cap per email (max 3/day) ─
+            c.execute("""SELECT COUNT(*) as cnt FROM orders
+                         WHERE lower(email)=lower(%s)
+                         AND submitted_at > NOW() - INTERVAL '24 hours'""", (email,))
+            daily_count = (c.fetchone() or {}).get("cnt", 0)
+            if daily_count >= 3:
+                return jsonify({"success": False,
+                    "error": "Maximum 3 orders can be submitted per day from one email."}), 429
+
+            # ── LAYER 13: DUPLICATE ORDER ID CHECK ────────────────────────
+            # This is the critical check — case-insensitive, exact match
+            c.execute("""SELECT status, email FROM orders
+                         WHERE lower(order_id)=lower(%s) LIMIT 1""", (order_id,))
+            existing = c.fetchone()
+            if existing:
+                _log_attempt(conn, ip, email, order_id, was_duplicate=True)
+                log.warning("duplicate_order_id order_id=%s new_email=%s existing_email=%s",
+                            order_id, mask(email), mask(existing.get("email", "")))
+                return jsonify({"success": False,
+                    "error": "This Order ID has already been submitted and is being tracked. "
+                             "Each order can only earn stars once."}), 409
+
+            # ── LAYER 14: Check same email + different order IDs suspicious ─
+            c.execute("""SELECT COUNT(*) as cnt FROM orders
+                         WHERE lower(email)=lower(%s)
+                         AND submitted_at > NOW() - INTERVAL '7 days'""", (email,))
+            week_count = (c.fetchone() or {}).get("cnt", 0)
+
+            # ── LAYER 15: Same IP submitted different emails? ─────────────
+            c.execute("""SELECT COUNT(DISTINCT lower(email)) as cnt FROM orders
+                         WHERE ip_address=%s
+                         AND submitted_at > NOW() - INTERVAL '24 hours'""", (ip,))
+            ip_email_count = (c.fetchone() or {}).get("cnt", 0)
+
+            # ── LAYER 16: Fraud score calculation ─────────────────────────
+            fraud_score = 0
+            fraud_reasons = []
+
+            if ip_email_count >= 3:
+                fraud_score += 30
+                fraud_reasons.append(f"ip_multi_email:{ip_email_count}")
+
+            if week_count >= 5:
+                fraud_score += 20
+                fraud_reasons.append(f"high_weekly_volume:{week_count}")
+
+            if daily_count >= 2:
+                fraud_score += 10
+                fraud_reasons.append(f"daily_count:{daily_count}")
+
+            # Check if IP has many failed attempts recently
+            c.execute("""SELECT COUNT(*) as cnt FROM submission_attempts
+                         WHERE ip_address=%s
+                         AND attempted_at > NOW() - INTERVAL '1 hour'
+                         AND (was_duplicate OR was_invalid_fmt OR blocked)""", (ip,))
+            bad_attempts = (c.fetchone() or {}).get("cnt", 0)
+            if bad_attempts >= 5:
+                fraud_score += 25
+                fraud_reasons.append(f"bad_attempts:{bad_attempts}")
+
+            # Auto-block IP if fraud score is extreme
+            if fraud_score >= 80:
+                try:
+                    c.execute("""INSERT INTO blocked_entities(entity_type, value, reason)
+                                 VALUES('ip', %s, %s)
+                                 ON CONFLICT(entity_type, value) DO NOTHING""",
+                              (ip, f"Auto-blocked: fraud_score={fraud_score} reasons={','.join(fraud_reasons)}"))
+                    conn.commit()
+                except Exception:
+                    pass
+                _log_attempt(conn, ip, email, order_id, blocked=True)
+                return jsonify({"success": False,
+                    "error": "Suspicious activity detected. Access temporarily restricted."}), 403
+
+        # ── LAYER 17: Save files ─────────────────────────────────────────
+        pfx = random.randint(10000, 99999)
+        op  = save_file(of, f"{pfx}_{secure_filename(of.filename)}")
+        rp  = None
+        rf  = request.files.get("rating_screenshot")
+        if rf and rf.filename and ok_ext(rf.filename):
+            rf_bytes = rf.read()
+            if 0 < len(rf_bytes) <= MAX_FILE_BYTES:
+                rf.seek(0)
                 rp = save_file(rf, f"{pfx}r_{secure_filename(rf.filename)}")
 
-            with conn.cursor() as c:
-                c.execute("""INSERT INTO users(email) VALUES(%s)
-                             ON CONFLICT(email) DO UPDATE SET updated_at=NOW()
-                             RETURNING total_stars""",(email,))
-                stars = (c.fetchone() or {}).get("total_stars",0)
+        # ── LAYER 18: Insert into DB (atomic) ────────────────────────────
+        with conn.cursor() as c:
+            c.execute("""INSERT INTO users(email)
+                         VALUES(%s)
+                         ON CONFLICT(email) DO UPDATE SET updated_at=NOW()
+                         RETURNING total_stars""", (email,))
+            stars = (c.fetchone() or {}).get("total_stars", 0)
 
-            token = None
-            for _ in range(10):
-                t = gen_token()
-                try:
-                    with conn.cursor() as c:
-                        c.execute("""INSERT INTO orders(
-                            order_id,email,name,token,status,
-                            screenshot_order_path,screenshot_rating_path,
-                            ip_address,user_agent_hash,submitted_at)
-                          VALUES(%s,%s,%s,%s,'pending',%s,%s,%s,%s,NOW())""",
-                            (order_id,email,name,t,op,rp,ip,uh))
-                    token=t; break
-                except Exception as e:
-                    if "unique" in str(e).lower(): conn.rollback(); continue
-                    raise
+        token = None
+        for _ in range(10):
+            t = gen_token()
+            try:
+                with conn.cursor() as c:
+                    c.execute("""INSERT INTO orders(
+                        order_id, email, name, token, status,
+                        screenshot_order_path, screenshot_rating_path,
+                        ip_address, user_agent_hash, submitted_at,
+                        fraud_score, fraud_reasons, submission_count_snapshot)
+                      VALUES(%s,%s,%s,%s,'pending',%s,%s,%s,%s,NOW(),%s,%s,%s)""",
+                        (order_id, email, name, t, op, rp, ip, uh,
+                         fraud_score, ",".join(fraud_reasons) if fraud_reasons else None,
+                         week_count))
+                token = t
+                break
+            except Exception as e:
+                if "unique" in str(e).lower():
+                    conn.rollback()
+                    continue
+                raise
 
-            if not token:
-                conn.rollback()
-                return jsonify({"success":False,"error":"Token error — retry"}),500
-            conn.commit()
-            log.info("submit_ok email=%s order_id=%s", mask(email), order_id)
-            return jsonify({"success":True,"token":token,"total_stars":stars,
-                "message":"Order submitted! Stars added after delivery confirmed (14–21 days)."}),200
+        if not token:
+            conn.rollback()
+            return jsonify({"success": False, "error": "Token error — please retry."}), 500
 
-        except Exception as e:
-            conn.rollback(); log.error("submit_db: %s",e)
-            return jsonify({"success":False,"error":"Submission failed — retry"}),500
-        finally:
-            conn.close()
+        # ── LAYER 19: Log this submission attempt ─────────────────────────
+        _log_attempt(conn, ip, email, order_id)
+        conn.commit()
+
+        log.info("submit_ok email=%s order_id=%s fraud_score=%d", mask(email), order_id, fraud_score)
+        return jsonify({
+            "success": True,
+            "token": token,
+            "total_stars": stars,
+            "message": "Order submitted! Stars added after delivery is confirmed (14–21 days)."
+        }), 200
+
     except Exception as e:
-        log.error("submit: %s",e)
-        return jsonify({"success":False,"error":"Unexpected error"}),500
+        try: conn.rollback()
+        except Exception: pass
+        log.error("submit_db: %s", e)
+        return jsonify({"success": False, "error": "Server error. Please try again."}), 500
+    finally:
+        try: conn.close()
+        except Exception: pass
 
 
-# ── API: GET STARS ────────────────────────────────────────────────────
-@app.route("/api/get-stars", methods=["POST"])
-def get_stars():
+def _log_attempt(conn, ip, email, order_id,
+                 was_duplicate=False, was_invalid_fmt=False, blocked=False):
+    """Log every submission attempt for fraud analysis."""
     try:
-        data  = request.get_json(silent=True) or {}
-        email = data.get("email","").strip().lower()
-        if not email: return jsonify({"success":False,"error":"Email required"}),400
-        conn = get_db()
-        if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
-        try:
-            with conn.cursor() as c:
-                c.execute("SELECT total_stars FROM users WHERE email=%s",(email,))
-                u = c.fetchone()
-                if not u:
-                    return jsonify({"success":True,"found":False,"email":email,
-                        "total_stars":0,"pending_count":0,"under_review_count":0,
-                        "approved_count":0,"rejected_count":0}),200
-                c.execute("""SELECT
-                    COUNT(*) FILTER(WHERE status='approved')     AS approved,
-                    COUNT(*) FILTER(WHERE status='pending')      AS pending,
-                    COUNT(*) FILTER(WHERE status='under_review') AS under_review,
-                    COUNT(*) FILTER(WHERE status='rejected')     AS rejected,
-                    COUNT(*) FILTER(WHERE status='disputed')     AS disputed
-                  FROM orders WHERE email=%s""",(email,))
-                ct = c.fetchone() or {}
-            return jsonify({"success":True,"found":True,"email":email,
-                "total_stars":int(ct.get("approved",0)),
-                "approved_count":int(ct.get("approved",0)),
-                "pending_count":int(ct.get("pending",0)),
-                "under_review_count":int(ct.get("under_review",0)),
-                "rejected_count":int(ct.get("rejected",0)),
-                "disputed_count":int(ct.get("disputed",0)),
-                "total_orders":sum(int(ct.get(k,0)) for k in
-                                   ("pending","under_review","approved","rejected","disputed")),
-            }),200
-        finally:
-            conn.close()
-    except Exception as e:
-        log.error("get_stars: %s",e)
-        return jsonify({"success":False,"error":"Unexpected error"}),500
+        with conn.cursor() as c:
+            c.execute("""INSERT INTO submission_attempts
+                         (ip_address, email, order_id, was_duplicate, was_invalid_fmt, blocked)
+                         VALUES(%s, %s, %s, %s, %s, %s)""",
+                      (ip, email, order_id, was_duplicate, was_invalid_fmt, blocked))
+        conn.commit()
+    except Exception as ex:
+        log.warning("log_attempt_error: %s", ex)
 
 
-# ── ADMIN: RUN APPROVALS (called by GitHub Actions daily) ─────────────
 @app.route("/api/admin/run-approvals", methods=["POST"])
 @require_admin
 def run_approvals():

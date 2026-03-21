@@ -1,320 +1,236 @@
-// ===== VISTARA REWARDS — CHECK STARS PAGE JS v2 =====
-// Now shows: approved stars + pending/under_review breakdown
+// ===== VISTARA ESSENTIALS — CHECK STARS PAGE =====
 
 document.addEventListener('DOMContentLoaded', () => {
   LangManager.init();
   document.getElementById('checkEmail').focus();
-  // Pre-warm server on page load
   fetch('/api/wake', { method: 'GET' }).catch(() => {});
 });
 
-const checkStarsForm   = document.getElementById('checkStarsForm');
-const checkEmailInput  = document.getElementById('checkEmail');
-const resultsSection   = document.getElementById('resultsSection');
-const noResultsSection = document.getElementById('noResultsSection');
-const errorSection     = document.getElementById('errorSection');
-const loadingSection   = document.getElementById('loadingSection');
-const checkEmailError  = document.getElementById('checkEmailError');
+const form          = document.getElementById('checkStarsForm');
+const emailInput    = document.getElementById('checkEmail');
+const emailError    = document.getElementById('checkEmailError');
+const resultsEl     = document.getElementById('resultsSection');
+const noResultsEl   = document.getElementById('noResultsSection');
+const errorEl       = document.getElementById('errorSection');
+const loadingEl     = document.getElementById('loadingSection');
 
 let isChecking = false;
 
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e); }
 
-// ===== SECTION HELPERS =====
-function hideAllSections() {
-  [resultsSection, noResultsSection, errorSection, loadingSection].forEach(s => {
-    s.style.display = 'none';
-    s.classList.remove('fade-in');
+function hideAll() {
+  [resultsEl, noResultsEl, errorEl, loadingEl].forEach(el => {
+    if (el) { el.style.display = 'none'; el.classList.remove('fade-in'); }
   });
 }
 
-function showResults(apiData) {
-  hideAllSections();
-  resultsSection.style.display = 'block';
-  setTimeout(() => resultsSection.classList.add('fade-in'), 10);
-  updateStarsDisplay(apiData);
+function show(el) {
+  hideAll();
+  if (el) { el.style.display = 'block'; setTimeout(() => el.classList.add('fade-in'), 10); }
 }
 
-function showNoResults() {
-  hideAllSections();
-  noResultsSection.style.display = 'block';
-  setTimeout(() => noResultsSection.classList.add('fade-in'), 10);
-  const t = id => document.getElementById(id);
-  if (t('noResultsTitle')) t('noResultsTitle').textContent = LangManager.get('noResultsTitle');
-  if (t('noResultsText'))  t('noResultsText').textContent  = LangManager.get('noResultsText');
-  if (t('submitFirstOrderBtn')) t('submitFirstOrderBtn').textContent = LangManager.get('submitFirstOrder');
-}
+// ===== STATUS CONFIG =====
+const STATUS_CONFIG = {
+  approved:     { icon: '⭐', label: 'Approved',    color: '#2ECC71', bg: '#f0fff8', note: 'Star credited to your account!' },
+  pending:      { icon: '⏳', label: 'Pending',     color: '#F39C12', bg: '#fffbf0', note: 'Waiting for delivery confirmation from Meesho CSV' },
+  under_review: { icon: '🔍', label: 'Under Review',color: '#3498DB', bg: '#f0f8ff', note: 'Delivered! Star will be credited after 21-day return window' },
+  rejected:     { icon: '❌', label: 'Rejected',    color: '#E74C3C', bg: '#fff5f5', note: 'Order was returned or cancelled — no star given' },
+  disputed:     { icon: '⚠️', label: 'Disputed',   color: '#E67E22', bg: '#fff8f0', note: 'Please contact support with your token' },
+  stale:        { icon: '💤', label: 'Expired',     color: '#95A5A6', bg: '#f8f9fa', note: 'Order not found in Meesho CSV after 60 days' },
+};
 
-function showErrorState(message) {
-  hideAllSections();
-  errorSection.style.display = 'block';
-  setTimeout(() => errorSection.classList.add('fade-in'), 10);
-  const t = id => document.getElementById(id);
-  if (t('errorText'))          t('errorText').textContent          = message;
-  if (t('errorSectionTitle'))  t('errorSectionTitle').textContent  = LangManager.get('errorSectionTitle');
-  if (t('tryAgainSectionBtn')) t('tryAgainSectionBtn').textContent = LangManager.get('tryAgain');
-}
+// ===== RENDER RESULTS =====
+function renderResults(data) {
+  const approved    = parseInt(data.approved     || 0);
+  const pending     = parseInt(data.pending      || 0);
+  const underReview = parseInt(data.under_review || 0);
+  const rejected    = parseInt(data.rejected     || 0);
+  const orders      = data.orders || [];
 
-function showLoading() {
-  hideAllSections();
-  loadingSection.style.display = 'flex';
-  const el = document.getElementById('loadingTextEl');
-  if (el) el.textContent = LangManager.get('loadingText');
-}
+  // --- Stars display ---
+  const starsEl = document.getElementById('starsDisplay');
+  const countEl = document.getElementById('starsCount');
+  if (starsEl) starsEl.textContent = approved > 0 ? '⭐'.repeat(Math.min(approved, 15)) : '—';
+  if (countEl) countEl.textContent = approved;
 
-// ===== STARS DISPLAY (v2 — uses full API response) =====
-function updateStarsDisplay(apiData) {
-  // API returns: approved, pending, under_review, rejected, total_stars, orders[]
-  const approvedStars  = parseInt(apiData.approved      ?? apiData.total_stars ?? 0, 10);
-  const pendingCount   = parseInt(apiData.pending       ?? 0, 10);
-  const underReview    = parseInt(apiData.under_review  ?? 0, 10);
-  const rejectedCount  = parseInt(apiData.rejected      ?? 0, 10);
-
-  // --- Star emoji display ---
-  const starsDisplay = document.getElementById('starsDisplay');
-  const starsCountEl = document.getElementById('starsCount');
-  if (starsDisplay) {
-    let starStr = '';
-    for (let i = 0; i < Math.min(approvedStars, 20); i++) starStr += '⭐';
-    starsDisplay.textContent = starStr || (approvedStars === 0 ? '—' : starStr);
-  }
-  if (starsCountEl) {
-    const word = approvedStars === 1 ? LangManager.get('starWord') : LangManager.get('starsWord');
-    starsCountEl.textContent = `${approvedStars} ${word}`;
-  }
-
-  // --- Static labels ---
-  const setTxt = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = LangManager.get(key); };
-  setTxt('resultLabelEl',   'resultLabel');
-  setTxt('progressLabelEl', 'progressLabel');
-  setTxt('tiersTitleEl',    'tiersTitle');
-  setTxt('tier5NameEl',     'tier5Name');
-  setTxt('tier5RewardEl',   'tier5Reward');
-  setTxt('tier10NameEl',    'tier10Name');
-  setTxt('tier10RewardEl',  'tier10Reward');
+  // --- Stats badges ---
+  const showStat = (id, numId, count) => {
+    const el = document.getElementById(id);
+    const ne = document.getElementById(numId);
+    if (el) el.style.display = count > 0 ? 'flex' : 'none';
+    if (ne) ne.textContent = count;
+  };
+  showStat('summaryPending',  'statPendingNum',  pending);
+  showStat('summaryReview',   'statReviewNum',   underReview);
+  showStat('summaryApproved', 'statApprovedNum', approved);
+  showStat('summaryRejected', 'statRejectedNum', rejected);
 
   // --- Progress bar ---
   const progressBar  = document.getElementById('progressBar');
   const progressText = document.getElementById('progressText');
-  const milestoneMsg = document.getElementById('milestonMessage');
-
-  if (approvedStars < 5) {
-    const rem = 5 - approvedStars;
-    if (progressBar)  progressBar.style.width = (approvedStars / 5 * 100) + '%';
-    if (progressText) progressText.textContent = `${approvedStars} / 5 ${LangManager.get('starsWord')}`;
-    if (milestoneMsg) milestoneMsg.textContent = `${LangManager.get('onlyMore')} ${rem} ${LangManager.get('milestoneToFree')}`;
-  } else if (approvedStars < 10) {
-    const rem = 10 - approvedStars;
-    if (progressBar)  progressBar.style.width = ((approvedStars - 5) / 5 * 100) + '%';
-    if (progressText) progressText.textContent = `${approvedStars - 5} / 5 ${LangManager.get('starsWord')}`;
-    if (milestoneMsg) milestoneMsg.textContent = `${LangManager.get('onlyMore')} ${rem} ${LangManager.get('milestoneToPremium')}`;
+  const milestone    = document.getElementById('milestonMessage');
+  if (approved < 5) {
+    if (progressBar)  progressBar.style.width = (approved / 5 * 100) + '%';
+    if (progressText) progressText.textContent = `${approved} / 5 ⭐`;
+    if (milestone)    milestone.textContent = `${5 - approved} more star${5 - approved !== 1 ? 's' : ''} to FREE GIFT 🎁`;
+  } else if (approved < 10) {
+    if (progressBar)  progressBar.style.width = ((approved - 5) / 5 * 100) + '%';
+    if (progressText) progressText.textContent = `${approved - 5} / 5 ⭐`;
+    if (milestone)    milestone.textContent = `${10 - approved} more star${10 - approved !== 1 ? 's' : ''} to PREMIUM PRIZE 🏆`;
   } else {
     if (progressBar)  progressBar.style.width = '100%';
-    if (progressText) progressText.textContent = LangManager.get('maxTier');
-    if (milestoneMsg) milestoneMsg.textContent = LangManager.get('milestoneMax');
+    if (progressText) progressText.textContent = '10 / 10 ⭐';
+    if (milestone)    milestone.textContent = '🏆 All rewards unlocked!';
   }
 
-  // --- Tier locks ---
-  updateTierStatus(approvedStars);
-
-  // --- Status breakdown panel ---
-  renderStatusBreakdown(pendingCount, underReview, approvedStars, rejectedCount);
-  renderOrderHistory(apiData.orders || []);
-}
-
-function updateTierStatus(approvedStars) {
-  const tier5  = document.getElementById('tier5');
-  const tier10 = document.getElementById('tier10');
-  if (tier5)  { tier5.classList.toggle('unlocked', approvedStars >= 5);  tier5.classList.toggle('locked', approvedStars < 5);  }
-  if (tier10) { tier10.classList.toggle('unlocked', approvedStars >= 10); tier10.classList.toggle('locked', approvedStars < 10); }
-}
-
-// --- Status Breakdown: pending / under_review / approved / rejected ---
-function renderStatusBreakdown(pending, underReview, approved, rejected) {
-  const panel = document.getElementById('statusBreakdownPanel');
-  if (!panel) return;
-
-  // Only show panel if there's something interesting to display
-  if (pending === 0 && underReview === 0 && rejected === 0) {
-    panel.style.display = 'none';
-    return;
-  }
-  panel.style.display = 'block';
-
-  const title = panel.querySelector('.breakdown-title');
-  if (title) title.textContent = LangManager.get('orderBreakdownTitle');
-
-  const rows = [
-    { id: 'bd-pending',      count: pending,     labelKey: 'pendingLabel',     icon: '⏳', cls: 'status-pending'   },
-    { id: 'bd-review',       count: underReview, labelKey: 'underReviewLabel', icon: '🔍', cls: 'status-review'    },
-    { id: 'bd-approved',     count: approved,    labelKey: 'approvedLabel',    icon: '⭐', cls: 'status-approved'  },
-    { id: 'bd-rejected',     count: rejected,    labelKey: 'rejectedLabel',    icon: '❌', cls: 'status-rejected'  },
-  ];
-
-  rows.forEach(row => {
-    const el = document.getElementById(row.id);
-    if (!el) return;
-    el.style.display = row.count > 0 ? 'flex' : 'none';
-    const labelEl = el.querySelector('.bd-label');
-    const countEl = el.querySelector('.bd-count');
-    if (labelEl) labelEl.textContent = `${row.icon} ${LangManager.get(row.labelKey)}`;
-    if (countEl) countEl.textContent = row.count;
-  });
-
-  // Contextual note for pending/under_review
+  // --- Status note ---
   const noteEl = document.getElementById('statusNote');
   if (noteEl) {
     if (underReview > 0) {
-      noteEl.textContent = LangManager.get('underReviewNote');
+      noteEl.textContent = '🔍 Delivery confirmed! Stars credited after 21-day return window closes.';
       noteEl.style.display = 'block';
     } else if (pending > 0) {
-      noteEl.textContent = LangManager.get('pendingNote');
+      noteEl.textContent = '⏳ Your order is being verified. Stars added once delivery is confirmed by Meesho.';
       noteEl.style.display = 'block';
     } else {
       noteEl.style.display = 'none';
     }
   }
+
+  // --- Tiers ---
+  const t5  = document.getElementById('tier5');
+  const t10 = document.getElementById('tier10');
+  if (t5)  { t5.classList.toggle('unlocked', approved >= 5);  t5.classList.toggle('locked', approved < 5); }
+  if (t10) { t10.classList.toggle('unlocked', approved >= 10); t10.classList.toggle('locked', approved < 10); }
+
+  // --- Order records ---
+  renderOrderRecords(orders);
+
+  show(resultsEl);
 }
 
-// ===== ORDER HISTORY =====
-function renderOrderHistory(orders) {
-  const panel = document.getElementById('orderHistoryPanel');
-  const list  = document.getElementById('orderHistoryList');
-  if (!panel || !list) return;
+// ===== ORDER RECORDS — the main table users wanted =====
+function renderOrderRecords(orders) {
+  const list = document.getElementById('orderRecordsList');
+  if (!list) return;
 
   if (!orders || orders.length === 0) {
-    panel.style.display = 'none';
+    list.innerHTML = '<p style="text-align:center;color:#aaa;padding:20px;font-size:.85rem">No orders found</p>';
     return;
   }
 
-  panel.style.display = 'block';
   list.innerHTML = '';
 
-  const statusIcon = {
-    'approved':     '⭐',
-    'pending':      '⏳',
-    'under_review': '🔍',
-    'rejected':     '❌',
-    'disputed':     '⚠️',
-    'stale':        '💤',
-  };
-
-  const statusColor = {
-    'approved':     '#2ECC71',
-    'pending':      '#F39C12',
-    'under_review': '#3498DB',
-    'rejected':     '#E74C3C',
-    'disputed':     '#E67E22',
-    'stale':        '#95A5A6',
-  };
-
-  orders.forEach(order => {
-    const icon  = statusIcon[order.status]  || '📦';
-    const color = statusColor[order.status] || '#888';
+  orders.forEach((order, idx) => {
+    const cfg   = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
     const date  = order.submitted
-      ? new Date(order.submitted).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'})
+      ? new Date(order.submitted).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
       : '—';
+    const approvedDate = order.approved
+      ? new Date(order.approved).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+      : null;
 
-    const statusLabel = order.status.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const card = document.createElement('div');
+    card.className = 'order-record-card';
+    card.style.borderLeftColor = cfg.color;
+    card.style.background = cfg.bg;
 
-    const row = document.createElement('div');
-    row.className = 'order-history-row';
-    row.innerHTML = `
-      <div class="order-history-left">
-        <span class="order-history-icon">${icon}</span>
-        <div class="order-history-info">
-          <span class="order-history-id">${order.order_id}</span>
-          <span class="order-history-date">${date}</span>
+    card.innerHTML = `
+      <div class="orc-top">
+        <div class="orc-left">
+          <span class="orc-num">#${idx + 1}</span>
+          <span class="orc-status-icon">${cfg.icon}</span>
+          <div class="orc-info">
+            <span class="orc-order-id">Order ID: ${order.order_id}</span>
+            <span class="orc-date">Submitted: ${date}</span>
+          </div>
         </div>
-      </div>
-      <div class="order-history-right">
-        <span class="order-history-status" style="color:${color};border-color:${color}20;background:${color}12">
-          ${statusLabel}
+        <span class="orc-badge" style="background:${cfg.color}18;color:${cfg.color};border:1px solid ${cfg.color}40">
+          ${cfg.icon} ${cfg.label}
         </span>
-        ${order.token ? `<span class="order-history-token">🎫 ${order.token}</span>` : ''}
+      </div>
+      <div class="orc-bottom">
+        <div class="orc-token">
+          <span class="orc-token-label">🎫 Token:</span>
+          <span class="orc-token-value">${order.token || '—'}</span>
+        </div>
+        ${approvedDate ? `<div class="orc-approved-date">✅ Approved: ${approvedDate}</div>` : ''}
+        <div class="orc-note">${cfg.note}</div>
       </div>
     `;
-    list.appendChild(row);
+    list.appendChild(card);
   });
 }
 
-// ===== FORM SUBMISSION =====
-checkStarsForm.addEventListener('submit', async (e) => {
+// ===== FORM SUBMIT =====
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = checkEmailInput.value.trim();
-
-  checkEmailError.classList.remove('show');
-  checkEmailError.textContent = '';
+  const email = emailInput.value.trim();
+  emailError.classList.remove('show');
 
   if (!email) {
-    checkEmailError.textContent = LangManager.get('checkEmailError');
-    checkEmailError.classList.add('show');
-    checkEmailInput.focus();
+    emailError.textContent = 'Please enter your email address';
+    emailError.classList.add('show');
     return;
   }
   if (!isValidEmail(email)) {
-    checkEmailError.textContent = LangManager.get('checkEmailInvalid');
-    checkEmailError.classList.add('show');
-    checkEmailInput.focus();
+    emailError.textContent = 'Please enter a valid email address';
+    emailError.classList.add('show');
     return;
   }
   if (isChecking) return;
 
   isChecking = true;
-  showLoading();
+  show(loadingEl);
+  if (loadingEl) loadingEl.style.display = 'flex';
 
   try {
-    const response = await fetch('/api/get-stars', {
-      method: 'POST',
+    const res  = await fetch('/api/get-stars', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body:    JSON.stringify({ email })
     });
-    const data = await response.json();
+    const data = await res.json();
 
     if (data.success) {
       if (data.found) {
-        showResults(data);
+        renderResults(data);
       } else {
-        showNoResults();
+        show(noResultsEl);
+        const t = id => document.getElementById(id);
+        if (t('noResultsTitle')) t('noResultsTitle').textContent = LangManager.get('noResultsTitle');
+        if (t('noResultsText'))  t('noResultsText').textContent  = LangManager.get('noResultsText');
       }
     } else {
-      showErrorState(data.error || 'Failed to fetch stars. Please try again.');
+      show(errorEl);
+      const et = document.getElementById('errorText');
+      if (et) et.textContent = data.error || 'Failed to fetch. Please try again.';
     }
   } catch (err) {
-    showErrorState('An unexpected error occurred. Please try again later.');
+    show(errorEl);
+    const et = document.getElementById('errorText');
+    if (et) et.textContent = 'Connection error. Please try again.';
   } finally {
     isChecking = false;
   }
 });
 
-// ===== EMAIL INPUT =====
-checkEmailInput.addEventListener('blur', () => {
-  const email = checkEmailInput.value.trim();
-  if (email && !isValidEmail(email)) {
-    checkEmailError.textContent = LangManager.get('checkEmailInvalid');
-    checkEmailError.classList.add('show');
-  } else {
-    checkEmailError.classList.remove('show');
+// ===== HELPERS =====
+emailInput.addEventListener('input',  () => emailError.classList.remove('show'));
+emailInput.addEventListener('blur',   () => {
+  if (emailInput.value.trim() && !isValidEmail(emailInput.value.trim())) {
+    emailError.textContent = 'Please enter a valid email address';
+    emailError.classList.add('show');
   }
 });
-checkEmailInput.addEventListener('input', () => checkEmailError.classList.remove('show'));
 
-// ===== RESET =====
 function resetCheck() {
-  checkStarsForm.reset();
-  hideAllSections();
-  checkEmailInput.focus();
-  checkEmailError.classList.remove('show');
+  form.reset();
+  hideAll();
+  emailInput.focus();
+  emailError.classList.remove('show');
 }
 
-// ===== KEYBOARD =====
 document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') checkStarsForm.dispatchEvent(new Event('submit'));
   if (e.key === 'Escape') resetCheck();
-});
-
-window.addEventListener('load', () => {
-  console.log('Vistara Rewards v2 — Check Stars loaded');
 });

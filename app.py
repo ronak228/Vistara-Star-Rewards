@@ -105,18 +105,60 @@ def require_admin(f):
 
 
 # ── DATABASE ──────────────────────────────────────────────────────────
+# ── CONNECTION POOL — keeps 2 persistent connections, never sleeps ────
+_pool = None
+
+def init_pool():
+    global _pool
+    if not DATABASE_URL:
+        return
+    try:
+        from psycopg_pool import ConnectionPool
+        _pool = ConnectionPool(
+            DATABASE_URL,
+            min_size=1,
+            max_size=5,
+            open=True,
+            kwargs={
+                "sslmode": DB_SSLMODE,
+                "connect_timeout": 15,
+                "row_factory": dict_row,
+            },
+        )
+        log.info("DB connection pool initialised")
+    except Exception as e:
+        log.warning("Pool init failed (will use single connections): %s", e)
+        _pool = None
+
+# Initialise pool at startup
+with app.app_context():
+    init_pool()
+
 def get_db(retries=3):
+    """Return a DB connection — from pool if available, else direct."""
+    global _pool
+    import time
+
+    # Try pool first
+    if _pool is not None:
+        try:
+            conn = _pool.getconn(timeout=10)
+            return conn
+        except Exception as e:
+            log.warning("Pool getconn failed, falling back: %s", e)
+
+    # Fallback: direct connection with retries
     if not DATABASE_URL:
         log.warning("DATABASE_URL not set")
         return None
-    import time
     for attempt in range(retries):
         try:
-            return psycopg.connect(DATABASE_URL, sslmode=DB_SSLMODE,
-                                   connect_timeout=15, autocommit=False,
-                                   row_factory=dict_row)
+            return psycopg.connect(
+                DATABASE_URL, sslmode=DB_SSLMODE,
+                connect_timeout=15, autocommit=False,
+                row_factory=dict_row)
         except Exception as e:
-            log.warning("DB connect attempt %d failed: %s", attempt+1, e)
+            log.warning("DB direct attempt %d failed: %s", attempt+1, e)
             if attempt < retries - 1:
                 time.sleep(2)
     log.error("DB connect failed after %d attempts", retries)

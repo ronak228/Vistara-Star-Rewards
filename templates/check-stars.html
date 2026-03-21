@@ -9,7 +9,7 @@
 </head>
 <body>
 
-    <!-- ===== LANGUAGE POPUP ===== -->
+    <!-- LANGUAGE POPUP -->
     <div class="lang-popup-overlay" id="langPopup">
         <div class="lang-popup-card">
             <span class="lang-popup-icon">🌐</span>
@@ -22,11 +22,11 @@
         </div>
     </div>
 
-    <!-- ===== HEADER ===== -->
+    <!-- HEADER -->
     <header class="header">
         <div class="container">
             <div class="header-content">
-                <a href="/" class="logo" aria-label="Vistara Essentials Home">
+                <a href="/" class="logo">
                     <span class="logo-icon">✨</span>
                     <span class="logo-text">Vistara Essentials</span>
                 </a>
@@ -41,7 +41,6 @@
         </div>
     </header>
 
-    <!-- ===== CHECK STARS SECTION ===== -->
     <section class="check-stars-section">
         <div class="container">
             <div class="check-stars-wrapper">
@@ -52,7 +51,7 @@
                         <span data-i18n="checkStarsTitle">Check Your Stars</span>
                     </h1>
                     <p class="check-stars-subtitle" data-i18n="checkStarsSubtitle">
-                        Enter your email to see how many reward stars you've earned
+                        Enter your email to see all your orders and star status
                     </p>
                 </div>
 
@@ -66,7 +65,7 @@
                             </label>
                             <div class="input-wrapper">
                                 <input type="email" id="checkEmail" name="email" class="form-input"
-                                    placeholder="your.email@example.com" required>
+                                    placeholder="your.email@example.com" required autocomplete="email">
                                 <button type="submit" class="btn btn-primary btn-check" data-i18n="checkBtn">
                                     Check My Stars
                                 </button>
@@ -75,113 +74,108 @@
                         </div>
                     </form>
 
-                    <!-- ===== RESULTS SECTION ===== -->
-                    <div class="results-section" id="resultsSection" style="display:none;">
-                        <div class="results-container">
+                    <!-- LOADING -->
+                    <div class="loading-section" id="loadingSection" style="display:none;">
+                        <div class="spinner"></div>
+                        <p class="loading-text" id="loadingTextEl">Checking your stars...</p>
+                    </div>
 
-                            <!-- Confirmed stars -->
-                            <div class="stars-result">
-                                <p class="result-label" id="resultLabelEl">Your Total Stars</p>
-                                <div id="starsDisplay" class="stars-display-large">⭐⭐⭐</div>
-                                <p id="starsCount" class="stars-count-text">3 Stars</p>
-                            </div>
+                    <!-- RESULTS -->
+                    <div id="resultsSection" style="display:none;">
 
-                            <!-- Progress bar -->
-                            <div class="progress-section">
-                                <div class="progress-info">
-                                    <p class="progress-label" id="progressLabelEl">Progress to Next Reward</p>
-                                    <span id="progressText" class="progress-text">3 / 5 Stars</span>
-                                </div>
-                                <div class="progress-bar-container">
-                                    <div id="progressBar" class="progress-bar" style="width:60%;"></div>
+                        <!-- Stars Summary Bar -->
+                        <div class="cs-summary-bar">
+                            <div class="cs-summary-stars">
+                                <div class="cs-stars-big" id="starsDisplay">—</div>
+                                <div class="cs-stars-label">
+                                    <span id="starsCount" class="cs-stars-number">0</span>
+                                    <span class="cs-stars-word">Confirmed Stars</span>
                                 </div>
                             </div>
-
-                            <!-- Milestone message -->
-                            <div class="milestone-message" id="milestonMessage">
-                                Only 2 more stars to unlock your free gift 🎁
-                            </div>
-
-                            <!-- ===== ORDER STATUS BREAKDOWN (v2) ===== -->
-                            <div class="status-breakdown" id="statusBreakdownPanel" style="display:none;">
-                                <h4 class="breakdown-title">Order Status Breakdown</h4>
-
-                                <div class="bd-row status-pending" id="bd-pending" style="display:none;">
-                                    <span class="bd-label">⏳ Pending</span>
-                                    <span class="bd-count badge badge-pending">0</span>
+                            <div class="cs-summary-stats">
+                                <div class="cs-stat cs-stat-pending" id="summaryPending" style="display:none">
+                                    <span class="cs-stat-icon">⏳</span>
+                                    <span class="cs-stat-num" id="statPendingNum">0</span>
+                                    <span class="cs-stat-lbl">Pending</span>
                                 </div>
-                                <div class="bd-row status-review" id="bd-review" style="display:none;">
-                                    <span class="bd-label">🔍 Under Review</span>
-                                    <span class="bd-count badge badge-review">0</span>
+                                <div class="cs-stat cs-stat-review" id="summaryReview" style="display:none">
+                                    <span class="cs-stat-icon">🔍</span>
+                                    <span class="cs-stat-num" id="statReviewNum">0</span>
+                                    <span class="cs-stat-lbl">In Review</span>
                                 </div>
-                                <div class="bd-row status-approved" id="bd-approved" style="display:none;">
-                                    <span class="bd-label">⭐ Approved</span>
-                                    <span class="bd-count badge badge-approved">0</span>
+                                <div class="cs-stat cs-stat-approved" id="summaryApproved" style="display:none">
+                                    <span class="cs-stat-icon">⭐</span>
+                                    <span class="cs-stat-num" id="statApprovedNum">0</span>
+                                    <span class="cs-stat-lbl">Approved</span>
                                 </div>
-                                <div class="bd-row status-rejected" id="bd-rejected" style="display:none;">
-                                    <span class="bd-label">❌ Rejected</span>
-                                    <span class="bd-count badge badge-rejected">0</span>
-                                </div>
-
-                                <!-- Contextual note -->
-                                <p class="status-note" id="statusNote" style="display:none;"></p>
-                            </div>
-
-                            <!-- Reward Tiers -->
-                            <div class="reward-tiers">
-                                <h3 class="tiers-title" id="tiersTitleEl">Reward Tiers</h3>
-                                <div class="tier locked" id="tier5">
-                                    <div class="tier-check">✓</div>
-                                    <div class="tier-info">
-                                        <p class="tier-name" id="tier5NameEl">5 Stars</p>
-                                        <p class="tier-reward" id="tier5RewardEl">Free Gift</p>
-                                    </div>
-                                </div>
-                                <div class="tier locked" id="tier10">
-                                    <div class="tier-check">✓</div>
-                                    <div class="tier-info">
-                                        <p class="tier-name" id="tier10NameEl">10 Stars</p>
-                                        <p class="tier-reward" id="tier10RewardEl">Premium Gift</p>
-                                    </div>
+                                <div class="cs-stat cs-stat-rejected" id="summaryRejected" style="display:none">
+                                    <span class="cs-stat-icon">❌</span>
+                                    <span class="cs-stat-num" id="statRejectedNum">0</span>
+                                    <span class="cs-stat-lbl">Rejected</span>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- ===== ORDER HISTORY ===== -->
-                            <div class="order-history-panel" id="orderHistoryPanel" style="display:none;">
-                                <h4 class="order-history-title">📋 Your Order History</h4>
-                                <div id="orderHistoryList"></div>
+                        <!-- Progress to next reward -->
+                        <div class="cs-progress-wrap">
+                            <div class="cs-progress-info">
+                                <span id="progressText">0 / 5 Stars</span>
+                                <span id="milestonMessage" class="cs-milestone-msg"></span>
                             </div>
+                            <div class="progress-bar-container">
+                                <div id="progressBar" class="progress-bar" style="width:0%"></div>
+                            </div>
+                        </div>
 
-                        </div><!-- /results-container -->
+                        <!-- Note for pending/under review -->
+                        <div class="cs-status-note" id="statusNote" style="display:none"></div>
+
+                        <!-- ORDER RECORDS TABLE -->
+                        <div class="cs-orders-section">
+                            <h4 class="cs-orders-title">📋 Your Order Records</h4>
+                            <div id="orderRecordsList"></div>
+                        </div>
+
+                        <!-- Reward Tiers -->
+                        <div class="cs-tiers">
+                            <div class="cs-tier locked" id="tier5">
+                                <span class="cs-tier-check">✓</span>
+                                <div>
+                                    <p class="cs-tier-name">5 Stars</p>
+                                    <p class="cs-tier-reward">🎁 Free Gift</p>
+                                </div>
+                                <span class="cs-tier-badge">5 ⭐</span>
+                            </div>
+                            <div class="cs-tier locked" id="tier10">
+                                <span class="cs-tier-check">✓</span>
+                                <div>
+                                    <p class="cs-tier-name">10 Stars</p>
+                                    <p class="cs-tier-reward">🏆 Premium Prize</p>
+                                </div>
+                                <span class="cs-tier-badge">10 ⭐</span>
+                            </div>
+                        </div>
+
                     </div><!-- /resultsSection -->
 
-                    <!-- ===== NO RESULTS ===== -->
+                    <!-- NO RESULTS -->
                     <div class="no-results" id="noResultsSection" style="display:none;">
                         <div class="no-results-icon">🔍</div>
                         <h3 class="no-results-title" id="noResultsTitle">No Account Found</h3>
                         <p class="no-results-text" id="noResultsText">
-                            We couldn't find any orders associated with this email address.
+                            We couldn't find any orders for this email address.
                         </p>
-                        <div class="no-results-actions">
-                            <a href="/" class="btn btn-primary" id="submitFirstOrderBtn" data-i18n="submitFirstOrder">
-                                Submit Your First Order
-                            </a>
-                        </div>
+                        <a href="/" class="btn btn-primary" id="submitFirstOrderBtn">
+                            Submit Your First Order →
+                        </a>
                     </div>
 
-                    <!-- ===== ERROR ===== -->
+                    <!-- ERROR -->
                     <div class="error-section" id="errorSection" style="display:none;">
                         <div class="error-icon">⚠️</div>
                         <h3 class="error-title" id="errorSectionTitle">Something Went Wrong</h3>
                         <p id="errorText" class="error-text">Please try again later</p>
-                        <button type="button" class="btn btn-primary" id="tryAgainSectionBtn"
-                            onclick="resetCheck()">Try Again</button>
-                    </div>
-
-                    <!-- ===== LOADING ===== -->
-                    <div class="loading-section" id="loadingSection" style="display:none;">
-                        <div class="spinner"></div>
-                        <p class="loading-text" id="loadingTextEl">Checking your stars...</p>
+                        <button type="button" class="btn btn-primary" onclick="resetCheck()">Try Again</button>
                     </div>
 
                 </div><!-- /check-stars-card -->
@@ -190,35 +184,10 @@
                     <a href="/" class="btn btn-secondary btn-lg" data-i18n="submitAnother">Submit Another Order</a>
                 </div>
 
-            </div><!-- /check-stars-wrapper -->
-        </div>
-    </section>
-
-    <!-- ===== HOW TO MAXIMIZE ===== -->
-    <section class="features-section">
-        <div class="container">
-            <h2 class="section-title" data-i18n="maximizeTitle">How to Maximize Your Rewards</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-number">1</div>
-                    <h3 data-i18n="step1Title">Submit Order Details</h3>
-                    <p data-i18n="step1Desc">Upload your order confirmation and rating screenshots</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-number">2</div>
-                    <h3 data-i18n="step2Title">Earn Stars</h3>
-                    <p data-i18n="step2Desc">Get 1 star for every verified purchase</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-number">3</div>
-                    <h3 data-i18n="step3Title">Claim Rewards</h3>
-                    <p data-i18n="step3Desc">Trade your stars for exclusive gifts and offers</p>
-                </div>
             </div>
         </div>
     </section>
 
-    <!-- ===== FOOTER ===== -->
     <footer class="footer">
         <div class="container">
             <div class="footer-content">

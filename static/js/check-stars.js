@@ -66,10 +66,11 @@ function showLoading() {
 
 // ===== STARS DISPLAY (v2 — uses full API response) =====
 function updateStarsDisplay(apiData) {
-  const approvedStars  = parseInt(apiData.approved_count  ?? apiData.total_stars ?? 0, 10);
-  const pendingCount   = parseInt(apiData.pending_count   ?? 0, 10);
-  const underReview    = parseInt(apiData.under_review_count ?? 0, 10);
-  const rejectedCount  = parseInt(apiData.rejected_count  ?? 0, 10);
+  // API returns: approved, pending, under_review, rejected, total_stars, orders[]
+  const approvedStars  = parseInt(apiData.approved      ?? apiData.total_stars ?? 0, 10);
+  const pendingCount   = parseInt(apiData.pending       ?? 0, 10);
+  const underReview    = parseInt(apiData.under_review  ?? 0, 10);
+  const rejectedCount  = parseInt(apiData.rejected      ?? 0, 10);
 
   // --- Star emoji display ---
   const starsDisplay = document.getElementById('starsDisplay');
@@ -120,6 +121,7 @@ function updateStarsDisplay(apiData) {
 
   // --- Status breakdown panel ---
   renderStatusBreakdown(pendingCount, underReview, approvedStars, rejectedCount);
+  renderOrderHistory(apiData.orders || []);
 }
 
 function updateTierStatus(approvedStars) {
@@ -174,6 +176,68 @@ function renderStatusBreakdown(pending, underReview, approved, rejected) {
       noteEl.style.display = 'none';
     }
   }
+}
+
+// ===== ORDER HISTORY =====
+function renderOrderHistory(orders) {
+  const panel = document.getElementById('orderHistoryPanel');
+  const list  = document.getElementById('orderHistoryList');
+  if (!panel || !list) return;
+
+  if (!orders || orders.length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  list.innerHTML = '';
+
+  const statusIcon = {
+    'approved':     '⭐',
+    'pending':      '⏳',
+    'under_review': '🔍',
+    'rejected':     '❌',
+    'disputed':     '⚠️',
+    'stale':        '💤',
+  };
+
+  const statusColor = {
+    'approved':     '#2ECC71',
+    'pending':      '#F39C12',
+    'under_review': '#3498DB',
+    'rejected':     '#E74C3C',
+    'disputed':     '#E67E22',
+    'stale':        '#95A5A6',
+  };
+
+  orders.forEach(order => {
+    const icon  = statusIcon[order.status]  || '📦';
+    const color = statusColor[order.status] || '#888';
+    const date  = order.submitted
+      ? new Date(order.submitted).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'})
+      : '—';
+
+    const statusLabel = order.status.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    const row = document.createElement('div');
+    row.className = 'order-history-row';
+    row.innerHTML = `
+      <div class="order-history-left">
+        <span class="order-history-icon">${icon}</span>
+        <div class="order-history-info">
+          <span class="order-history-id">${order.order_id}</span>
+          <span class="order-history-date">${date}</span>
+        </div>
+      </div>
+      <div class="order-history-right">
+        <span class="order-history-status" style="color:${color};border-color:${color}20;background:${color}12">
+          ${statusLabel}
+        </span>
+        ${order.token ? `<span class="order-history-token">🎫 ${order.token}</span>` : ''}
+      </div>
+    `;
+    list.appendChild(row);
+  });
 }
 
 // ===== FORM SUBMISSION =====

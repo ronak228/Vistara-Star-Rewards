@@ -11,6 +11,9 @@ on:
         required: false
         default: 'manual trigger'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   process-orders:
     runs-on: ubuntu-latest
@@ -28,19 +31,18 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Wake up Render (free plan sleeps after idle)
+      - name: Wake up Render
         env:
           APP_URL: ${{ secrets.APP_URL }}
         run: |
-          echo "Pinging health endpoint to wake Render..."
+          echo "Waking up Render server..."
           for i in 1 2 3; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/health" || echo "000")
             echo "Attempt $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then
-              echo "Server is awake!"
+              echo "Server awake!"
               break
             fi
-            echo "Waiting 15 seconds..."
             sleep 15
           done
 
@@ -50,6 +52,6 @@ jobs:
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         run: python automation/github_trigger.py
 
-      - name: Summary
+      - name: Done
         if: always()
-        run: echo "Completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+        run: echo "Finished at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

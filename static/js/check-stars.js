@@ -4,6 +4,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   LangManager.init();
   document.getElementById('checkEmail').focus();
+  // Pre-warm server on page load
+  fetch('/api/wake', { method: 'GET' }).catch(() => {});
 });
 
 const checkStarsForm   = document.getElementById('checkStarsForm');

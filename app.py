@@ -105,17 +105,22 @@ def require_admin(f):
 
 
 # ── DATABASE ──────────────────────────────────────────────────────────
-def get_db():
+def get_db(retries=3):
     if not DATABASE_URL:
         log.warning("DATABASE_URL not set")
         return None
-    try:
-        return psycopg.connect(DATABASE_URL, sslmode=DB_SSLMODE,
-                               connect_timeout=5, autocommit=False,
-                               row_factory=dict_row)
-    except Exception as e:
-        log.error("DB connect failed: %s", e)
-        return None
+    import time
+    for attempt in range(retries):
+        try:
+            return psycopg.connect(DATABASE_URL, sslmode=DB_SSLMODE,
+                                   connect_timeout=15, autocommit=False,
+                                   row_factory=dict_row)
+        except Exception as e:
+            log.warning("DB connect attempt %d failed: %s", attempt+1, e)
+            if attempt < retries - 1:
+                time.sleep(2)
+    log.error("DB connect failed after %d attempts", retries)
+    return None
 
 def get_config(conn) -> dict:
     try:
@@ -970,6 +975,17 @@ def get_stars():
         return jsonify({"success": False, "error": "Server error"}), 500
     finally:
         conn.close()
+
+
+# ── WAKE: pre-warm endpoint (called before submit) ───────────────────
+@app.route("/api/wake", methods=["GET"])
+def wake():
+    """Frontend calls this on page load to pre-warm DB connection."""
+    conn = get_db()
+    if conn:
+        conn.close()
+        return jsonify({"status": "ready"}), 200
+    return jsonify({"status": "starting"}), 503
 
 
 # ── HEALTH (UptimeRobot pings this every 5 min) ───────────────────────

@@ -7,7 +7,21 @@ const SHOP_NAME = 'Vistara Essentials';
 document.addEventListener('DOMContentLoaded', () => {
   LangManager.init();
   setupWhatsAppButtons();
+  prewarmServer(); // Wake up Render + DB on page load so submit is instant
 });
+
+// ── PRE-WARM: ping server on page load so DB is ready when user submits ──
+function prewarmServer() {
+  fetch('/api/wake', { method: 'GET' })
+    .then(r => r.json())
+    .then(d => console.log('Server status:', d.status))
+    .catch(() => {
+      // Server still waking — retry after 8 seconds
+      setTimeout(() => {
+        fetch('/api/wake', { method: 'GET' }).catch(() => {});
+      }, 8000);
+    });
+}
 
 // ===== WHATSAPP BUTTON SETUP =====
 function waLink(msg) {

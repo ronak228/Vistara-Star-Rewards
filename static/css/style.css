@@ -2018,3 +2018,56 @@ body {
   .milestone-inner { flex-direction: column; gap: 10px; }
   .share-prizes { flex-direction: column; align-items: center; }
 }
+
+/* ===== RETURN WARNING BANNER ===== */
+.return-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: linear-gradient(135deg, #FFF3CD 0%, #FFEEBA 100%);
+  border: 2px solid #F39C12;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+.return-warning-banner::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: #F39C12;
+  border-radius: 4px 0 0 4px;
+}
+
+.return-warning-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.return-warning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.return-warning-text strong {
+  font-size: .88rem;
+  font-weight: 800;
+  color: #856404;
+  display: block;
+}
+
+.return-warning-text span {
+  font-size: .8rem;
+  color: #7d6608;
+  line-height: 1.55;
+}
+
+@media (max-width: 480px) {
+  .return-warning-banner { padding: 12px 14px; gap: 10px; }
+  .return-warning-icon   { font-size: 1.2rem; }
+}

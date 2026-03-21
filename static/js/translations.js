@@ -161,6 +161,11 @@ const translations = {
     approvedLabel:        "Approved",
     rejectedLabel:        "Rejected",
     orderBreakdownTitle:  "Order Status Breakdown",
+    // ── Return Warning ────────────────────────────────────────────────
+    returnWarnTitle: "⚠️ Important: Returns = No Star",
+    returnWarnDesc:  "If you return or cancel this order, your star will NOT be counted — even if already submitted. Only completed, kept orders earn stars.",
+
+
     // ── Steps / How It Works ──────────────────────────────────────────
     stepsTitle:    "How to Earn Stars & Win Prizes",
     stepsSubtitle: "Follow these 4 simple steps",
@@ -360,6 +365,11 @@ const translations = {
     approvedLabel:        "स्वीकृत",
     rejectedLabel:        "अस्वीकृत",
     orderBreakdownTitle:  "ऑर्डर स्थिति विवरण",
+    // ── Return Warning ────────────────────────────────────────────────
+    returnWarnTitle: "⚠️ ज़रूरी बात: रिटर्न करने पर स्टार नहीं मिलेगा",
+    returnWarnDesc:  "अगर आप यह ऑर्डर रिटर्न या कैंसिल करते हैं, तो स्टार नहीं मिलेगा — चाहे यहाँ सबमिट किया हो। केवल डिलीवर्ड और रखे गए ऑर्डर पर ही स्टार मिलते हैं।",
+
+
     // ── Steps / How It Works ──────────────────────────────────────────
     stepsTitle:    "स्टार कमाएं और पुरस्कार जीतें",
     stepsSubtitle: "इन 4 आसान चरणों का पालन करें",

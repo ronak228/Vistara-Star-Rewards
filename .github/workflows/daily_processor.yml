@@ -14,7 +14,7 @@ on:
 jobs:
   process-orders:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -27,6 +27,22 @@ jobs:
 
       - name: Install dependencies
         run: pip install requests
+
+      - name: Wake up Render (free plan sleeps after idle)
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          echo "Pinging health endpoint to wake Render..."
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/health" || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Server is awake!"
+              break
+            fi
+            echo "Waiting 15 seconds..."
+            sleep 15
+          done
 
       - name: Run daily processor
         env:

@@ -14,6 +14,26 @@ from werkzeug.utils import secure_filename
 app  = Flask(__name__)
 CORS(app)
 
+# ── SPEED: compress all responses ────────────────────────────────────
+try:
+    from flask_compress import Compress
+    Compress(app)
+except ImportError:
+    pass  # optional, install flask-compress for faster responses
+
+# ── SPEED: cache headers for static files ────────────────────────────
+@app.after_request
+def add_cache_headers(response):
+    # Cache static assets for 1 hour, never cache API responses
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+    elif request.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+    return response
+
+
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 log = logging.getLogger("vistara")
@@ -869,6 +889,85 @@ def sync_logs():
         with conn.cursor() as c:
             c.execute("SELECT * FROM csv_sync_log ORDER BY synced_at DESC LIMIT 30")
             return jsonify({"success":True,"sync_logs":[dict(r) for r in c.fetchall()]}),200
+    finally:
+        conn.close()
+
+
+
+# ── API: GET STARS (check-stars page) ────────────────────────────────
+@app.route("/api/get-stars", methods=["POST"])
+def get_stars():
+    data  = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+
+    if not email or not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', email):
+        return jsonify({"success": False, "error": "Invalid email address"}), 400
+
+    conn = get_db()
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
+
+    try:
+        with conn.cursor() as c:
+            # Get user record
+            c.execute("""
+                SELECT total_stars, submission_count, created_at
+                FROM users WHERE lower(email)=lower(%s)
+            """, (email,))
+            user = c.fetchone()
+
+            if not user:
+                return jsonify({"success": True, "found": False}), 200
+
+            # Get order breakdown by status
+            c.execute("""
+                SELECT
+                  COUNT(*) FILTER(WHERE status='approved')      AS approved,
+                  COUNT(*) FILTER(WHERE status='pending')       AS pending,
+                  COUNT(*) FILTER(WHERE status='under_review')  AS under_review,
+                  COUNT(*) FILTER(WHERE status='rejected')      AS rejected,
+                  COUNT(*) FILTER(WHERE status='disputed')      AS disputed,
+                  COUNT(*) FILTER(WHERE status='stale')         AS stale,
+                  COUNT(*)                                      AS total
+                FROM orders WHERE lower(email)=lower(%s)
+            """, (email,))
+            counts = c.fetchone() or {}
+
+            # Get recent orders list (last 10)
+            c.execute("""
+                SELECT order_id, status, submitted_at, approved_at,
+                       token, rejection_reason
+                FROM orders
+                WHERE lower(email)=lower(%s)
+                ORDER BY submitted_at DESC LIMIT 10
+            """, (email,))
+            orders = c.fetchall()
+
+        return jsonify({
+            "success":      True,
+            "found":        True,
+            "total_stars":  user.get("total_stars", 0),
+            "approved":     counts.get("approved", 0),
+            "pending":      counts.get("pending", 0),
+            "under_review": counts.get("under_review", 0),
+            "rejected":     counts.get("rejected", 0),
+            "total_orders": counts.get("total", 0),
+            "orders": [
+                {
+                    "order_id":   o["order_id"],
+                    "status":     o["status"],
+                    "submitted":  o["submitted_at"].isoformat() if o.get("submitted_at") else None,
+                    "approved":   o["approved_at"].isoformat()  if o.get("approved_at")  else None,
+                    "token":      o["token"],
+                    "rejection_reason": o.get("rejection_reason"),
+                }
+                for o in orders
+            ]
+        }), 200
+
+    except Exception as e:
+        log.error("get_stars: %s", e)
+        return jsonify({"success": False, "error": "Server error"}), 500
     finally:
         conn.close()
 

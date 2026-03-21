@@ -1,7 +1,7 @@
 // ===== VISTARA REWARDS - MAIN PAGE JS =====
 
 // ===== CONFIG — SET YOUR WHATSAPP NUMBER HERE =====
-const WHATSAPP_NUMBER = '919054396696'; // ← Replace with your number (country code + number, no +)
+const WHATSAPP_NUMBER = '919876543210'; // ← Replace with your number (country code + number, no +)
 const SHOP_NAME = 'Vistara Essentials';
 
 document.addEventListener('DOMContentLoaded', () => {

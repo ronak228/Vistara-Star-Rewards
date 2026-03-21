@@ -93,7 +93,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
       <label>Admin Secret</label>
       <input type="password" id="secret" placeholder="Enter ADMIN_SECRET" onkeydown="if(event.key==='Enter')login()">
     </div>
-    <button class="btn btn-primary" style="width:100%" onclick="login()">Login</button>
+    <button class="btn btn-primary" style="width:100%" id="loginBtn" onclick="login()">Login</button>
   </div>
 
   <!-- Main (hidden until authed) -->
@@ -232,12 +232,41 @@ async function api(path, opts={}) {
   try { return await res.json(); } catch(e) { return {success:false, error:'parse_error'}; }
 }
 
+async function wakeUp() {
+  // Render free plan sleeps when idle. Ping /health first to wake it up.
+  const btn = document.getElementById('loginBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Waking up server...'; }
+  try {
+    const r = await fetch('/health', {method:'GET'});
+    if (r.ok) {
+      if (btn) { btn.textContent = 'Connected! Logging in...'; }
+      return true;
+    }
+  } catch(e) {}
+  // Server might just be starting — wait 8 seconds and try again
+  await new Promise(res => setTimeout(res, 8000));
+  if (btn) { btn.textContent = 'Retrying...'; }
+  try { await fetch('/health', {method:'GET'}); } catch(e) {}
+  return true; // proceed anyway
+}
+
 async function login() {
   SECRET = document.getElementById('secret').value.trim();
   if (!SECRET) return toast('Enter admin secret','err');
+
+  // Wake up Render server first (may be sleeping if no traffic)
+  await wakeUp();
+
+  const btn = document.getElementById('loginBtn');
+  if (btn) { btn.textContent = 'Verifying...'; }
+
   try {
     const r = await api('/api/admin/ping');
-    if (!r.success) { toast('Wrong secret — check ADMIN_SECRET in Render env vars','err'); SECRET=''; return; }
+    if (!r.success) {
+      if (btn) { btn.disabled=false; btn.textContent='Login'; }
+      toast('Wrong secret — check ADMIN_SECRET in Render env vars','err');
+      SECRET=''; return;
+    }
     document.getElementById('gate').style.display='none';
     document.getElementById('main').style.display='block';
     if (r.counts) {
@@ -249,7 +278,9 @@ async function login() {
     }
     loadDashboard();
   } catch(e) {
-    toast('Connection error — is the app running?','err'); SECRET='';
+    if (btn) { btn.disabled=false; btn.textContent='Login'; }
+    toast('Server is starting up — please wait 30 seconds and try again','err');
+    SECRET='';
   }
 }
 

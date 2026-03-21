@@ -14,6 +14,26 @@ from werkzeug.utils import secure_filename
 app  = Flask(__name__)
 CORS(app)
 
+# ── KEEP ALIVE: self-ping every 4 min so Render never sleeps ────────
+import threading, time as _time
+
+def _keep_alive():
+    """Pings /health every 4 minutes so Render free plan never sleeps."""
+    _time.sleep(60)  # Wait 60s after startup before first ping
+    while True:
+        try:
+            import urllib.request
+            app_url = os.getenv("APP_URL", "")
+            if app_url:
+                urllib.request.urlopen(f"{app_url}/health", timeout=10)
+        except Exception:
+            pass  # Ignore errors — this is just a keep-alive
+        _time.sleep(240)  # Ping every 4 minutes
+
+_ka_thread = threading.Thread(target=_keep_alive, daemon=True)
+_ka_thread.start()
+
+
 # ── SPEED: compress all responses ────────────────────────────────────
 try:
     from flask_compress import Compress
@@ -1034,13 +1054,35 @@ def wake():
 @app.route("/health")
 @app.route("/api/health")
 def health():
+    """
+    FAST health check — responds instantly without DB query.
+    UptimeRobot pings this every 5 min to keep Render awake.
+    Fast response = Render never thinks it's down = never sleeps.
+    """
     if not DATABASE_URL:
         return jsonify({"status":"unhealthy","error":"DATABASE_URL missing"}),500
+    # Respond immediately — don't wait for DB to keep UptimeRobot happy
+    return jsonify({
+        "status":     "healthy",
+        "database":   "supabase",
+        "automation": "github_actions",
+        "project":    "fqsvksjhphutjnkvgnmk",
+        "uptime":     "render_free"
+    }), 200
+
+@app.route("/health/db")
+def health_db():
+    """Full DB health check — only call manually, not for UptimeRobot."""
     conn = get_db()
     if conn:
+        try:
+            with conn.cursor() as c:
+                c.execute("SELECT 1")
+        except Exception:
+            conn.close()
+            return jsonify({"status":"unhealthy","database":"error"}),500
         conn.close()
-        return jsonify({"status":"healthy","database":"connected",
-                        "automation":"github_actions","project":"fqsvksjhphutjnkvgnmk"}),200
+        return jsonify({"status":"healthy","database":"connected"}),200
     return jsonify({"status":"unhealthy","database":"disconnected"}),500
 
 

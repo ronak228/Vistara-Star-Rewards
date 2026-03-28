@@ -627,12 +627,14 @@ def upload_orders_csv():
         conn.commit()
         log.info("Stored %d IDs in orders_whitelist", len(valid_ids))
 
-        # Step 3: Process each submitted order against whitelist
+        # Step 3: Process each submitted order against this CSV
+        # Rule: if the order ID is in DB but NOT in this CSV → reject immediately.
+        # Real Meesho orders always appear in the Orders CSV. If it's missing, it's fake/random.
         stats = dict(
             total_ids_in_csv=len(valid_ids),
             rows_verified=0,      # pending → under_review (real order confirmed)
-            rows_rejected=0,      # in orders CSV but ALSO in returns = reject
-            rows_skipped=0,       # not in our DB (customer never submitted)
+            rows_rejected=0,      # NOT in CSV (fake/random ID) OR in returns = reject
+            rows_skipped=0,       # ID not in our submissions DB at all (nobody submitted it)
             auto_approved=0,
             auto_approve_checked=0,
         )
@@ -646,7 +648,20 @@ def upload_orders_csv():
         for order in unverified:
             oid = order["order_id"]
             if oid not in valid_ids:
-                stats["rows_skipped"] += 1
+                # Order ID is in DB (user submitted it) but NOT in Meesho CSV
+                # → fake or random ID — reject immediately, no waiting
+                with conn.cursor() as c:
+                    c.execute("""UPDATE orders SET status='rejected', rejected_at=NOW(),
+                        rejection_reason='Order ID not found in Meesho Orders CSV — invalid or does not belong to this store',
+                        updated_at=NOW()
+                      WHERE order_id=%s AND status IN ('pending','under_review')
+                      RETURNING order_id""", (oid,))
+                    if c.fetchone():
+                        audit(c, oid, order["status"], "rejected",
+                              "orders_csv:id_not_found_in_csv", sid)
+                        stats["rows_rejected"] += 1
+                        log.info("REJECTED fake/unmatched order_id=%s", oid)
+                conn.commit()
                 continue
 
             # This order IS in the Orders CSV → it's a real Meesho order
@@ -704,7 +719,7 @@ def upload_orders_csv():
                 rows_processed=%s, rows_matched=%s, rows_approved=%s, rows_skipped=%s
               WHERE id=%s""",
                 (stats["total_ids_in_csv"], stats["rows_verified"],
-                 stats["auto_approved"], stats["rows_skipped"], sid))
+                 stats["auto_approved"], stats["rows_rejected"], sid))
         conn.commit()
 
         return jsonify({
@@ -713,8 +728,7 @@ def upload_orders_csv():
                 f"✅ Orders CSV processed: "
                 f"{stats['total_ids_in_csv']} real order IDs found, "
                 f"{stats['rows_verified']} verified & moved to review, "
-                f"{stats['rows_rejected']} rejected (returned), "
-                f"{stats.get('stale_rejected',0)} fake/stale IDs rejected, "
+                f"{stats['rows_rejected']} rejected (fake/not in CSV or returned), "
                 f"{stats['auto_approved']} auto-approved."
             )
         }), 200

@@ -59,7 +59,8 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_BYTES
 
 # ── CSV COLUMN NAMES ──────────────────────────────────────────────────
 # Orders CSV (all Meesho orders — to verify real IDs)
-ORDERS_CSV_SUBORDER_COL = os.getenv("ORDERS_CSV_SUBORDER_COL", "Suborder Number")
+# Meesho Orders CSV uses "Sub Order No"; Returns CSV uses "Suborder Number"
+ORDERS_CSV_SUBORDER_COL = os.getenv("ORDERS_CSV_SUBORDER_COL", "Sub Order No")
 
 # Returns CSV (returned/RTO orders only)
 RETURN_CSV_SUBORDER_COL = os.getenv("RETURN_CSV_SUBORDER_COL", "Suborder Number")
@@ -133,6 +134,22 @@ def get_db(retries=3):
             log.warning("DB attempt %d failed: %s", attempt+1, e)
             if attempt < retries - 1: time.sleep(2)
     return None
+
+def release_db(conn):
+    """Return connection to pool if pooled, otherwise close it directly."""
+    global _pool
+    if conn is None:
+        return
+    if _pool is not None:
+        try:
+            _pool.putconn(conn)
+            return
+        except Exception as e:
+            log.warning("Pool putconn failed: %s", e)
+    try:
+        release_db(conn)
+    except Exception:
+        pass
 
 def get_config(conn) -> dict:
     try:
@@ -267,14 +284,26 @@ def parse_return_csv(filepath: str) -> set:
     """
     returned_ids = set()
     try:
-        rows, fieldnames = _find_header_and_parse(filepath, RETURN_CSV_SUBORDER_COL)
-        if RETURN_CSV_SUBORDER_COL not in fieldnames:
+        rows, fieldnames, actual_col = _find_header_and_parse(filepath, RETURN_CSV_SUBORDER_COL)
+        if not actual_col:
             log.error("Returns CSV missing '%s'. Got: %s", RETURN_CSV_SUBORDER_COL, fieldnames)
             return returned_ids
+
+        # Find actual type column name in CSV (fuzzy match)
+        actual_type_col = None
+        if fieldnames:
+            type_norm = RETURN_CSV_TYPE_COL.lower().replace(" ", "").replace("_", "")
+            for fname in fieldnames:
+                fname_norm = fname.lower().replace(" ", "").replace("_", "")
+                if type_norm in fname_norm or fname_norm in type_norm:
+                    actual_type_col = fname
+                    break
+
         for row in rows:
-            sid = str(row.get(RETURN_CSV_SUBORDER_COL, "")).strip()
-            ret_type = str(row.get(RETURN_CSV_TYPE_COL, "")).strip().lower()
-            if sid and (ret_type in RETURN_TYPE_VALUES or ret_type):
+            sid = str(row.get(actual_col, "")).strip()
+            ret_type = str(row.get(actual_type_col or RETURN_CSV_TYPE_COL, "")).strip().lower()
+            # Only include rows that are explicitly a return/RTO type
+            if sid and (ret_type in RETURN_TYPE_VALUES):
                 returned_ids.add(sid)
         log.info("Returns CSV parsed: %d returned IDs found", len(returned_ids))
     except Exception as e:
@@ -531,7 +560,7 @@ def submit():
         log.error("submit_db: %s", e)
         return jsonify({"success": False, "error": "Server error. Please try again."}), 500
     finally:
-        try: conn.close()
+        try: release_db(conn)
         except Exception: pass
 
 
@@ -585,7 +614,7 @@ def upload_orders_csv():
         valid_ids = parse_orders_csv(tmp_path)
         if not valid_ids:
             return jsonify({"success": False,
-                "error": f"No '{ORDERS_CSV_SUBORDER_COL}' column found. Check CSV format."}), 400
+                "error": f"No order IDs found. Expected column '{ORDERS_CSV_SUBORDER_COL}' (or similar). Upload the Meesho 'All Orders' CSV, not the Returns CSV."}), 400
 
         # Step 2: Store ALL valid IDs in orders_whitelist
         with conn.cursor() as c:
@@ -695,7 +724,7 @@ def upload_orders_csv():
         log.error("upload_orders_csv: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        conn.close()
+        release_db(conn)
         try: os.unlink(tmp_path)
         except Exception: pass
 
@@ -736,7 +765,7 @@ def upload_returns_csv():
         returned_ids = parse_return_csv(tmp_path)
         if not returned_ids:
             return jsonify({"success": False,
-                "error": f"No '{RETURN_CSV_SUBORDER_COL}' column found or no data. Check CSV format."}), 400
+                "error": f"No returned/RTO order IDs found. Expected column '{RETURN_CSV_SUBORDER_COL}' with return types like 'Customer Return' or 'Courier Return (RTO)'. Upload the Meesho 'Completed & Delivered' Returns CSV."}), 400
 
         # Store ALL returned IDs in returns_blocklist permanently
         with conn.cursor() as c:
@@ -838,7 +867,7 @@ def upload_returns_csv():
         log.error("upload_returns_csv: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        conn.close()
+        release_db(conn)
         try: os.unlink(tmp_path)
         except Exception: pass
 
@@ -873,7 +902,7 @@ def run_approvals():
         conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        conn.close()
+        release_db(conn)
 
 
 # ── ADMIN: MARK STALE ─────────────────────────────────────────────────
@@ -895,7 +924,7 @@ def mark_stale():
         conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        conn.close()
+        release_db(conn)
 
 
 # ── ADMIN: PING ────────────────────────────────────────────────────────
@@ -917,7 +946,7 @@ def admin_ping():
                   FROM orders""")
                 counts = dict(c.fetchone() or {})
         except Exception: pass
-        finally: conn.close()
+        finally: release_db(conn)
     return jsonify({"success": True, "counts": counts}), 200
 
 
@@ -950,7 +979,7 @@ def admin_orders():
         return jsonify({"success": True,
             "orders": [dict(r) for r in rows],
             "counts": dict(counts) if counts else {}}), 200
-    finally: conn.close()
+    finally: release_db(conn)
 
 
 # ── ADMIN: UPDATE ORDER ────────────────────────────────────────────────
@@ -962,7 +991,7 @@ def update_order():
     ns  = d.get("status","").strip()
     rr  = d.get("rejection_reason","").strip()
     an  = d.get("admin_note","").strip()
-    VALID = {"pending","under_review","approved","rejected","flagged","disputed"}
+    VALID = {"pending","under_review","approved","rejected","disputed"}
     if not oid or ns not in VALID:
         return jsonify({"success": False, "error": "Invalid params"}), 400
     if ns == "rejected" and not rr:
@@ -984,13 +1013,16 @@ def update_order():
               WHERE order_id=%s RETURNING order_id,status,email""",
                 (ns,rr,an,ns,ns,oid))
             upd = c.fetchone()
+            if not upd:
+                conn.rollback()
+                return jsonify({"success": False, "error": "Order not found or status unchanged"}), 404
             audit(c, oid, cur["status"], ns, f"admin_override:{an or rr}")
         conn.commit()
         return jsonify({"success": True, "order": dict(upd)}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally: conn.close()
+    finally: release_db(conn)
 
 
 # ── ADMIN: BLOCKLIST VIEWS ─────────────────────────────────────────────
@@ -1007,7 +1039,7 @@ def returns_blocklist():
             c.execute("SELECT COUNT(*) as total FROM returns_blocklist")
             total = c.fetchone()["total"]
         return jsonify({"success": True, "total": total, "blocklist": [dict(r) for r in rows]}), 200
-    finally: conn.close()
+    finally: release_db(conn)
 
 @app.route("/api/admin/orders-whitelist", methods=["GET"])
 @require_admin
@@ -1022,7 +1054,7 @@ def orders_whitelist():
             c.execute("SELECT COUNT(*) as total FROM orders_whitelist")
             total = c.fetchone()["total"]
         return jsonify({"success": True, "total": total, "whitelist": [dict(r) for r in rows]}), 200
-    finally: conn.close()
+    finally: release_db(conn)
 
 
 # ── ADMIN: CONFIG ──────────────────────────────────────────────────────
@@ -1035,7 +1067,7 @@ def get_cfg():
         with conn.cursor() as c:
             c.execute("SELECT key,value,description,updated_at FROM system_config ORDER BY key")
             return jsonify({"success": True, "config": [dict(r) for r in c.fetchall()]}), 200
-    finally: conn.close()
+    finally: release_db(conn)
 
 @app.route("/api/admin/config", methods=["POST"])
 @require_admin
@@ -1056,7 +1088,7 @@ def set_cfg():
         return jsonify({"success": True, "config": dict(upd)}), 200
     except Exception as e:
         conn.rollback(); return jsonify({"success": False, "error": str(e)}), 500
-    finally: conn.close()
+    finally: release_db(conn)
 
 
 # ── ADMIN: SYNC LOGS ───────────────────────────────────────────────────
@@ -1069,7 +1101,7 @@ def sync_logs():
         with conn.cursor() as c:
             c.execute("SELECT * FROM csv_sync_log ORDER BY synced_at DESC LIMIT 30")
             return jsonify({"success": True, "sync_logs": [dict(r) for r in c.fetchall()]}), 200
-    finally: conn.close()
+    finally: release_db(conn)
 
 
 # ── API: GET STARS ─────────────────────────────────────────────────────
@@ -1119,7 +1151,7 @@ def get_stars():
     except Exception as e:
         log.error("get_stars: %s", e)
         return jsonify({"success": False, "error": "Server error"}), 500
-    finally: conn.close()
+    finally: release_db(conn)
 
 
 # ── ADMIN: EXPORT ORDERS ──────────────────────────────────────────────
@@ -1173,7 +1205,7 @@ def export_orders():
         
         csv_content = output.getvalue()
         output.close()
-        conn.close()
+        release_db(conn)
         
         return csv_content, 200, {
             "Content-Type": "text/csv; charset=utf-8",
@@ -1188,7 +1220,7 @@ def export_orders():
 @app.route("/api/wake", methods=["GET"])
 def wake():
     conn = get_db()
-    if conn: conn.close(); return jsonify({"status": "ready"}), 200
+    if conn: release_db(conn); return jsonify({"status": "ready"}), 200
     return jsonify({"status": "starting"}), 503
 
 @app.route("/health")
@@ -1205,9 +1237,9 @@ def health_db():
         try:
             with conn.cursor() as c: c.execute("SELECT 1")
         except Exception:
-            conn.close()
+            release_db(conn)
             return jsonify({"status": "unhealthy"}), 500
-        conn.close()
+        release_db(conn)
         return jsonify({"status": "healthy", "database": "connected"}), 200
     return jsonify({"status": "unhealthy"}), 500
 

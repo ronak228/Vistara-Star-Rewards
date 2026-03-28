@@ -985,9 +985,9 @@ async function loadDashboard() {
   if (last) {
     const h = Math.round((Date.now()-new Date(last.synced_at))/3600000);
     si.classList.toggle('fresh', h<72);
-    si.innerHTML = `<span>${h}h ago</span>`;
+    si.innerHTML = `<span>⟳</span><span>${h}h ago</span>`;
   } else {
-    si.innerHTML = `<span>Never</span>`;
+    si.innerHTML = `<span>⟳</span><span>Never synced</span>`;
   }
 }
 

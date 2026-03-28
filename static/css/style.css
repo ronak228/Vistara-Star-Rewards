@@ -179,19 +179,9 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Logo image */
-.logo-img {
-  height: 44px;
-  width: auto;
-  object-fit: contain;
-  display: block;
-  flex-shrink: 0;
-}
-
 /* On very small screens shorten the logo text */
 @media (max-width: 360px) {
   .logo-text { font-size: 0.9rem; }
-  .logo-img { height: 36px; }
 }
 
 .header-right {

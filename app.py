@@ -1,5 +1,5 @@
 # app.py - Vistara Rewards (Production, Free-Plan Edition)
-# Free services: Render + Supabase + Cloudflare R2 + GitHub Actions + UptimeRobot
+# Free services: Vercel + Supabase + Cloudflare R2 + GitHub Actions
 # CSS: static/css/style.css
 
 from flask import Flask, render_template, request, jsonify
@@ -14,37 +14,16 @@ from werkzeug.utils import secure_filename
 app  = Flask(__name__)
 CORS(app)
 
-# ── KEEP ALIVE: self-ping every 4 min so Render never sleeps ────────
-import threading, time as _time
-
-def _keep_alive():
-    """Pings /health every 4 minutes so Render free plan never sleeps."""
-    _time.sleep(60)  # Wait 60s after startup before first ping
-    while True:
-        try:
-            import urllib.request
-            app_url = os.getenv("APP_URL", "")
-            if app_url:
-                urllib.request.urlopen(f"{app_url}/health", timeout=10)
-        except Exception:
-            pass  # Ignore errors — this is just a keep-alive
-        _time.sleep(240)  # Ping every 4 minutes
-
-_ka_thread = threading.Thread(target=_keep_alive, daemon=True)
-_ka_thread.start()
-
-
 # ── SPEED: compress all responses ────────────────────────────────────
 try:
     from flask_compress import Compress
     Compress(app)
 except ImportError:
-    pass  # optional, install flask-compress for faster responses
+    pass
 
 # ── SPEED: cache headers for static files ────────────────────────────
 @app.after_request
 def add_cache_headers(response):
-    # Cache static assets for 1 hour, never cache API responses
     if request.path.startswith('/static/'):
         response.headers['Cache-Control'] = 'public, max-age=3600'
     elif request.path.startswith('/api/'):
@@ -67,11 +46,9 @@ ALLOWED_EXTS     = {"png", "jpg", "jpeg", "gif", "webp"}
 RATE_WIN_MIN     = int(os.getenv("RATE_LIMIT_WINDOW_MINUTES", "60"))
 RATE_MAX_REQ     = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "5"))
 
-# Meesho Order ID — only valid format: 15-19 digits, underscore, 1-2 digits
-# Example: 265437129718567616_1
 MEESHO_ORDER_ID_REGEX = re.compile(r'^\d{15,19}_\d{1,2}$')
 
-# Cloudflare R2 (free 10 GB — S3-compatible)
+# Cloudflare R2
 R2_ON            = os.getenv("R2_ENABLED", "false").lower() == "true"
 R2_ACCOUNT_ID    = os.getenv("R2_ACCOUNT_ID", "")
 R2_ACCESS_KEY    = os.getenv("R2_ACCESS_KEY", "")
@@ -82,16 +59,16 @@ UPLOAD_DIR = os.getenv("UPLOAD_FOLDER", "/tmp/vistara_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_BYTES
 
-# CSV column names (matches Meesho export headers)
-CSV_COL_ORDER_ID    = os.getenv("CSV_COL_ORDER_ID",    "Order ID")
-CSV_COL_STATUS      = os.getenv("CSV_COL_STATUS",       "Order Status")
-CSV_COL_DELIVERY_DT = os.getenv("CSV_COL_DELIVERED_AT", "Delivery Date")
+# ── RETURN CSV CONFIG ─────────────────────────────────────────────────
+# Meesho Returns CSV columns (the download from Returns window)
+RETURN_CSV_SUBORDER_COL   = os.getenv("RETURN_CSV_SUBORDER_COL",   "Suborder Number")
+RETURN_CSV_TYPE_COL       = os.getenv("RETURN_CSV_TYPE_COL",        "Type of Return")
+RETURN_CSV_RETURN_DATE    = os.getenv("RETURN_CSV_RETURN_DATE",     "Return Created Date")
 
-DELIVERED_STATUSES = {"delivered", "delivered to customer"}
-RETURNED_STATUSES  = {
-    "returned", "rto", "rto delivered", "return delivered",
-    "return initiated", "cancelled", "lost in transit",
-    "return in transit", "rto initiated",
+# All return type values that mean "this is a return"
+RETURN_TYPE_VALUES = {
+    "customer return", "courier return (rto)", "courier return",
+    "rto", "return", "rto delivered",
 }
 
 
@@ -125,7 +102,6 @@ def require_admin(f):
 
 
 # ── DATABASE ──────────────────────────────────────────────────────────
-# ── CONNECTION POOL — keeps 2 persistent connections, never sleeps ────
 _pool = None
 
 def init_pool():
@@ -150,24 +126,18 @@ def init_pool():
         log.warning("Pool init failed (will use single connections): %s", e)
         _pool = None
 
-# Initialise pool at startup
 with app.app_context():
     init_pool()
 
 def get_db(retries=3):
-    """Return a DB connection — from pool if available, else direct."""
     global _pool
     import time
-
-    # Try pool first
     if _pool is not None:
         try:
             conn = _pool.getconn(timeout=10)
             return conn
         except Exception as e:
             log.warning("Pool getconn failed, falling back: %s", e)
-
-    # Fallback: direct connection with retries
     if not DATABASE_URL:
         log.warning("DATABASE_URL not set")
         return None
@@ -204,7 +174,6 @@ def audit(cur, order_id, from_s, to_s, reason, sync_id=None):
 
 # ── FILE STORAGE ──────────────────────────────────────────────────────
 def save_file(file_obj, filename: str) -> str:
-    """R2 if configured, else /tmp (ephemeral — set up R2 for production)."""
     if R2_ON and R2_ACCOUNT_ID:
         try:
             import boto3
@@ -249,183 +218,189 @@ def check_rate(conn, identifier, id_type) -> bool:
         return True
 
 
-# ── CSV APPROVAL GATE ─────────────────────────────────────────────────
-def can_approve(order: dict, cooling: int, min_checks: int, max_stale: int) -> bool:
+# ── RETURN CSV PROCESSOR ──────────────────────────────────────────────
+def parse_return_csv(filepath: str) -> set:
     """
-    ALL four conditions must pass simultaneously.
+    Parse Meesho Returns CSV (downloaded from Returns window).
+    Skips the metadata header rows (Supplier ID, name etc.) and
+    returns a set of Suborder Numbers (order IDs) that are returns.
 
-    1. ever_showed_return = FALSE  — permanent. Returns reset this field, never unset.
-    2. cooling days elapsed        — 21d = 7d return window + 10d transit + 4d CSV lag
-    3. consecutive streak >= 3     — 3 separate CSV uploads all showed Delivered (not just total)
-                                     streak resets to 0 the instant any CSV shows Returned
-    4. csv_last_seen_at fresh      — data must be from a recent upload, not stale
-    """
-    now = datetime.now(timezone.utc)
-    if order["ever_showed_return"]:                           return False
-    if not order["csv_delivered_at"]:                         return False
-    if (now - order["csv_delivered_at"]).days < cooling:      return False
-    if order["consecutive_delivered_count"] < min_checks:     return False
-    if not order["csv_last_seen_at"]:                         return False
-    if (now - order["csv_last_seen_at"]).days > max_stale:    return False
-    return True
-
-def parse_date(s):
-    if not s or not s.strip(): return None
-    for fmt in ("%Y-%m-%d","%d-%m-%Y","%d/%m/%Y","%Y/%m/%d","%d %b %Y","%d-%b-%Y"):
-        try: return datetime.strptime(s.strip(), fmt).replace(tzinfo=timezone.utc)
-        except ValueError: pass
-    return None
-
-def process_csv(filepath: str, conn, sync_id: int) -> dict:
-    """
-    Core fraud-safe CSV processor.
-
-    PATH A — Returned/RTO/Cancelled:
-      • Reset consecutive_delivered_count to 0
-      • Set ever_showed_return = TRUE (permanent, never resets)
-      • Reject immediately; if already approved → disputed
-
-    PATH B — Delivered:
-      • Increment consecutive_delivered_count (streak)
-      • Start cooling if first time
-      • Run approval gate after update
-
-    PATH C — Unknown (Shipped, Out for Delivery…):
-      • Update last_seen timestamp only, no status change
+    Handles both:
+      - Customer Return
+      - Courier Return (RTO)
     """
     import csv as csvlib
-    stats = dict(rows_processed=0, rows_matched=0, rows_delivered=0,
-                 rows_returned=0, rows_approved=0, rows_skipped=0, rows_disputed=0)
-    cfg   = get_config(conn)
-    cool  = int(cfg.get("cooling_days","21"))
-    minck = int(cfg.get("min_csv_checks_before_approve","3"))
-    stale = int(cfg.get("max_csv_staleness_days","5"))
-    auto  = cfg.get("auto_approve_enabled","true").lower() == "true"
-
+    returned_ids = set()
     try:
         with open(filepath, newline="", encoding="utf-8-sig") as f:
-            reader = csvlib.DictReader(f)
-            hdrs   = reader.fieldnames or []
-            if CSV_COL_ORDER_ID not in hdrs or CSV_COL_STATUS not in hdrs:
-                log.error("CSV missing required columns. Got: %s", hdrs)
-                return stats
-            has_dt = CSV_COL_DELIVERY_DT in hdrs
-            rows   = list(reader)
+            lines = f.readlines()
+
+        # Find the actual header row — it contains "Suborder Number"
+        header_idx = None
+        for i, line in enumerate(lines):
+            if RETURN_CSV_SUBORDER_COL in line:
+                header_idx = i
+                break
+
+        if header_idx is None:
+            log.error("Return CSV: could not find '%s' column", RETURN_CSV_SUBORDER_COL)
+            return returned_ids
+
+        import io
+        content = "".join(lines[header_idx:])
+        reader = csvlib.DictReader(io.StringIO(content))
+
+        if RETURN_CSV_SUBORDER_COL not in (reader.fieldnames or []):
+            log.error("Return CSV missing '%s'. Got: %s", RETURN_CSV_SUBORDER_COL, reader.fieldnames)
+            return returned_ids
+
+        for row in reader:
+            suborder = str(row.get(RETURN_CSV_SUBORDER_COL, "")).strip()
+            ret_type = str(row.get(RETURN_CSV_TYPE_COL, "")).strip().lower()
+            if not suborder:
+                continue
+            # All rows in this CSV are returns — but double-check type too
+            if ret_type in RETURN_TYPE_VALUES or ret_type:
+                returned_ids.add(suborder)
+
+        log.info("Return CSV parsed: %d returned order IDs found", len(returned_ids))
     except Exception as e:
-        log.error("CSV read error: %s", e)
+        log.error("parse_return_csv error: %s", e)
+    return returned_ids
+
+
+def process_return_csv(filepath: str, conn, sync_id: int) -> dict:
+    """
+    NEW LOGIC — Simple, accurate, fraud-proof:
+
+    1. Parse the Meesho Returns CSV → extract all returned Suborder Numbers
+    2. For each returned order ID found in our DB:
+       - REJECT immediately if pending/under_review
+       - Mark as DISPUTED if already approved (late return caught)
+       - Set ever_showed_return = TRUE permanently
+    3. For all other orders NOT in returns CSV:
+       - They stay as-is; auto-approve runs separately after cooling days
+
+    This replaces the old delivered-CSV upload flow entirely.
+    """
+    returned_ids = parse_return_csv(filepath)
+    stats = dict(
+        rows_processed=len(returned_ids),
+        rows_matched=0,
+        rows_rejected=0,
+        rows_disputed=0,
+        rows_skipped=0,
+        returned_ids_in_csv=len(returned_ids),
+    )
+
+    if not returned_ids:
+        log.warning("Return CSV produced 0 IDs — check file format")
         return stats
 
-    log.info("Processing %d CSV rows", len(rows))
-
-    for row in rows:
-        stats["rows_processed"] += 1
-        oid  = str(row.get(CSV_COL_ORDER_ID,"")).strip()
-        raw  = str(row.get(CSV_COL_STATUS,"")).strip()
-        cst  = raw.lower().strip()
-        rdt  = row.get(CSV_COL_DELIVERY_DT,"") if has_dt else ""
-        if not oid:
-            stats["rows_skipped"] += 1
-            continue
-
+    for suborder_id in returned_ids:
         with conn.cursor() as c:
-            c.execute("""SELECT status, csv_delivered_at, csv_check_count,
-                                consecutive_delivered_count, ever_showed_return, csv_last_seen_at
-                         FROM orders WHERE order_id=%s""", (oid,))
+            c.execute("""SELECT order_id, status, email
+                         FROM orders WHERE order_id = %s""", (suborder_id,))
             order = c.fetchone()
+
         if not order:
             stats["rows_skipped"] += 1
             continue
 
         stats["rows_matched"] += 1
-        dbs = order["status"]
+        current_status = order["status"]
 
-        # ── PATH A: RETURN ────────────────────────────────────────────
-        if cst in RETURNED_STATUSES:
-            stats["rows_returned"] += 1
-            with conn.cursor() as c:
-                c.execute("""UPDATE orders SET
-                    csv_last_status=%(s)s, csv_last_seen_at=NOW(),
-                    csv_check_count=csv_check_count+1,
-                    consecutive_delivered_count=0,
-                    ever_showed_return=TRUE, updated_at=NOW()
-                  WHERE order_id=%(o)s""", {"s": raw, "o": oid})
-                if dbs == "approved":
-                    c.execute("""UPDATE orders SET status='disputed',
-                        admin_note=COALESCE(admin_note||' | ','')
-                                  ||'LATE RETURN '||NOW()::DATE::TEXT,
-                        updated_at=NOW() WHERE order_id=%s""", (oid,))
-                    audit(c, oid, "approved", "disputed", f"late_return:{raw}", sync_id)
-                    stats["rows_disputed"] += 1
-                    log.warning("DISPUTED late return order_id=%s", oid)
-                elif dbs not in ("rejected","disputed","stale"):
-                    c.execute("""UPDATE orders SET status='rejected',
-                        rejected_at=NOW(), rejection_reason=%s, updated_at=NOW()
-                      WHERE order_id=%s AND status NOT IN ('rejected','disputed')""",
-                        (f"Meesho CSV: {raw}", oid))
-                    audit(c, oid, dbs, "rejected", f"csv:{raw}", sync_id)
-                    log.info("REJECTED order_id=%s reason=%s", oid, raw)
-            conn.commit()
-            continue
-
-        # ── PATH B: DELIVERED ─────────────────────────────────────────
-        if cst in DELIVERED_STATUSES:
-            del_ts = parse_date(rdt) or datetime.now(timezone.utc)
-            with conn.cursor() as c:
-                if dbs == "pending":
-                    c.execute("""UPDATE orders SET status='under_review',
-                        csv_last_status=%(s)s, csv_last_seen_at=NOW(),
-                        csv_delivered_at=%(dt)s,
-                        csv_check_count=csv_check_count+1,
-                        consecutive_delivered_count=consecutive_delivered_count+1,
-                        review_started_at=NOW(), updated_at=NOW()
-                      WHERE order_id=%(o)s AND status='pending'""",
-                        {"s": raw, "dt": del_ts, "o": oid})
-                    audit(c, oid, "pending", "under_review", "csv:delivered — cooling started", sync_id)
-                    stats["rows_delivered"] += 1
-                    log.info("DELIVERED order_id=%s → under_review", oid)
-                elif dbs == "under_review":
-                    c.execute("""UPDATE orders SET
-                        csv_last_status=%s, csv_last_seen_at=NOW(),
-                        csv_check_count=csv_check_count+1,
-                        consecutive_delivered_count=consecutive_delivered_count+1,
-                        updated_at=NOW() WHERE order_id=%s""", (raw, oid))
-                    stats["rows_skipped"] += 1
-                else:
-                    c.execute("""UPDATE orders SET csv_last_status=%s,
-                        csv_last_seen_at=NOW(), updated_at=NOW()
-                      WHERE order_id=%s""", (raw, oid))
-                    stats["rows_skipped"] += 1
-            conn.commit()
-
-            # ── APPROVAL GATE (runs after every Delivered update) ─────
-            if dbs == "under_review" and auto:
-                with conn.cursor() as c:
-                    c.execute("""SELECT csv_delivered_at, consecutive_delivered_count,
-                                        ever_showed_return, csv_last_seen_at
-                                 FROM orders WHERE order_id=%s""", (oid,))
-                    fresh = c.fetchone()
-                if fresh and can_approve(fresh, cool, minck, stale):
-                    with conn.cursor() as c:
-                        c.execute("""UPDATE orders SET status='approved',
-                            approved_at=NOW(), updated_at=NOW()
-                          WHERE order_id=%s AND status='under_review'
-                          RETURNING order_id""", (oid,))
-                        if c.fetchone():
-                            audit(c, oid, "under_review", "approved",
-                                  f"auto_approve:cool={cool}d "
-                                  f"checks={fresh['consecutive_delivered_count']}", sync_id)
-                            stats["rows_approved"] += 1
-                            log.info("APPROVED order_id=%s checks=%d",
-                                     oid, fresh["consecutive_delivered_count"])
-                    conn.commit()
-            continue
-
-        # ── PATH C: UNKNOWN STATUS ────────────────────────────────────
         with conn.cursor() as c:
-            c.execute("UPDATE orders SET csv_last_status=%s, csv_last_seen_at=NOW(),"
-                      " updated_at=NOW() WHERE order_id=%s", (raw, oid))
+            # Always permanently mark ever_showed_return = TRUE
+            c.execute("""UPDATE orders SET
+                ever_showed_return = TRUE,
+                consecutive_delivered_count = 0,
+                csv_last_status = 'returned_via_return_csv',
+                csv_last_seen_at = NOW(),
+                updated_at = NOW()
+              WHERE order_id = %s""", (suborder_id,))
+
+            if current_status == "approved":
+                # Late return — already gave star, now dispute
+                c.execute("""UPDATE orders SET
+                    status = 'disputed',
+                    admin_note = COALESCE(admin_note || ' | ', '') ||
+                                 'LATE RETURN caught via Returns CSV ' || NOW()::DATE::TEXT,
+                    updated_at = NOW()
+                  WHERE order_id = %s""", (suborder_id,))
+                audit(c, suborder_id, "approved", "disputed",
+                      "late_return:returns_csv_upload", sync_id)
+                stats["rows_disputed"] += 1
+                log.warning("DISPUTED late return order_id=%s email=%s",
+                            suborder_id, mask(order.get("email", "")))
+
+            elif current_status not in ("rejected", "disputed", "stale"):
+                # Pending / under_review → reject immediately
+                c.execute("""UPDATE orders SET
+                    status = 'rejected',
+                    rejected_at = NOW(),
+                    rejection_reason = 'Found in Meesho Returns CSV — order was returned',
+                    updated_at = NOW()
+                  WHERE order_id = %s AND status NOT IN ('rejected', 'disputed')""",
+                    (suborder_id,))
+                audit(c, suborder_id, current_status, "rejected",
+                      "returns_csv:order_found_in_returns", sync_id)
+                stats["rows_rejected"] += 1
+                log.info("REJECTED via returns CSV order_id=%s status_was=%s",
+                         suborder_id, current_status)
+
         conn.commit()
-        stats["rows_skipped"] += 1
+
+    log.info("Return CSV processing done: matched=%d rejected=%d disputed=%d skipped=%d",
+             stats["rows_matched"], stats["rows_rejected"],
+             stats["rows_disputed"], stats["rows_skipped"])
+    return stats
+
+
+def auto_approve_eligible(conn, sync_id: int) -> dict:
+    """
+    After uploading return CSV, auto-approve orders that:
+    - Are under_review
+    - NOT in ever_showed_return
+    - Have passed cooling_days since first delivered
+    """
+    cfg   = get_config(conn)
+    cool  = int(cfg.get("cooling_days", "21"))
+    auto  = cfg.get("auto_approve_enabled", "true").lower() == "true"
+    stats = dict(approved=0, checked=0)
+
+    if not auto:
+        return stats
+
+    now = datetime.now(timezone.utc)
+    with conn.cursor() as c:
+        c.execute("""SELECT order_id, email, token, csv_delivered_at,
+                            ever_showed_return, submitted_at
+                     FROM orders WHERE status = 'under_review'
+                       AND ever_showed_return = FALSE""")
+        candidates = c.fetchall()
+
+    for o in candidates:
+        stats["checked"] += 1
+        # Use submitted_at as fallback if csv_delivered_at is missing
+        ref_date = o.get("csv_delivered_at") or o.get("submitted_at")
+        if not ref_date:
+            continue
+        days_elapsed = (now - ref_date).days
+        if days_elapsed < cool:
+            continue
+        # Approve
+        with conn.cursor() as c:
+            c.execute("""UPDATE orders SET status = 'approved',
+                approved_at = NOW(), updated_at = NOW()
+              WHERE order_id = %s AND status = 'under_review'
+              RETURNING order_id""", (o["order_id"],))
+            if c.fetchone():
+                audit(c, o["order_id"], "under_review", "approved",
+                      f"auto_approve_after_returns_csv:days={days_elapsed}", sync_id)
+                stats["approved"] += 1
+                log.info("APPROVED order_id=%s days=%d", o["order_id"], days_elapsed)
+        conn.commit()
 
     return stats
 
@@ -447,21 +422,17 @@ def submit():
     ip = client_ip()
     uh = ua_hash()
 
-    # ── LAYER 1: File size check (before anything else) ──────────────────
     content_len = request.content_length or 0
     if content_len > MAX_FILE_BYTES:
         return jsonify({"success": False, "error": "Request too large. Max 5MB allowed."}), 413
 
-    # ── LAYER 2: Extract and sanitise inputs ─────────────────────────────
     name     = (request.form.get("name", "") or "").strip()
     email    = (request.form.get("email", "") or "").strip().lower()
     order_id = (request.form.get("order_id", "") or "").strip()
 
-    # ── LAYER 3: Field presence check ────────────────────────────────────
     if not name or not email or not order_id:
         return jsonify({"success": False, "error": "All fields are required."}), 400
 
-    # ── LAYER 4: Name validation ──────────────────────────────────────────
     if len(name) < 2:
         return jsonify({"success": False, "error": "Name must be at least 2 characters."}), 400
     if len(name) > 100:
@@ -469,42 +440,33 @@ def submit():
     if not re.match(r'^[ऀ-ॿ਀-੿଀-୿a-zA-Z\s.\'-]+$', name):
         return jsonify({"success": False, "error": "Name contains invalid characters."}), 400
 
-    # ── LAYER 5: Email validation ─────────────────────────────────────────
     if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', email):
         return jsonify({"success": False, "error": "Invalid email address."}), 400
     if len(email) > 254:
         return jsonify({"success": False, "error": "Email address too long."}), 400
 
-    # ── LAYER 6: Meesho Order ID format validation ────────────────────────
-    # Only valid format: 15-19 digits, underscore, 1-2 digits
-    # Example: 265437129718567616_1
     if not MEESHO_ORDER_ID_REGEX.match(order_id):
         return jsonify({"success": False,
             "error": "Invalid Order ID format. Meesho Order IDs look like: 265437129718567616_1"}), 400
 
-    # ── LAYER 7: Screenshot file validation ───────────────────────────────
     of = request.files.get("order_screenshot")
     if not of or not of.filename:
         return jsonify({"success": False, "error": "Order screenshot is required."}), 400
     if not ok_ext(of.filename):
         return jsonify({"success": False, "error": "Screenshot must be PNG, JPG, GIF or WEBP."}), 400
-    # Read file to check actual size and magic bytes
     file_bytes = of.read()
     if len(file_bytes) == 0:
         return jsonify({"success": False, "error": "Screenshot file is empty."}), 400
     if len(file_bytes) > MAX_FILE_BYTES:
         return jsonify({"success": False, "error": "Screenshot too large. Max 5MB."}), 413
-    # Validate magic bytes (actual file type, not just extension)
     MAGIC = {
-        b'\xff\xd8\xff': "jpg",      # JPEG
-        b'\x89PNG':        "png",      # PNG
-        b'GIF8':           "gif",      # GIF
-        b'RIFF':           "webp",     # WEBP (starts with RIFF)
+        b'\xff\xd8\xff': "jpg",
+        b'\x89PNG':       "png",
+        b'GIF8':          "gif",
+        b'RIFF':          "webp",
     }
-    file_type_valid = any(file_bytes[:len(sig)] == sig for sig in MAGIC)
-    if not file_type_valid:
+    if not any(file_bytes[:len(sig)] == sig for sig in MAGIC):
         return jsonify({"success": False, "error": "File does not appear to be a valid image."}), 400
-    # Seek back so we can save it
     of.seek(0)
 
     conn = get_db()
@@ -513,36 +475,28 @@ def submit():
 
     try:
         with conn.cursor() as c:
-
-            # ── LAYER 8: Check if IP is blocked ───────────────────────────
             c.execute("""SELECT 1 FROM blocked_entities
                          WHERE entity_type='ip' AND value=%s LIMIT 1""", (ip,))
             if c.fetchone():
-                log.warning("blocked_ip attempt ip=%s order_id=%s", ip, order_id)
                 return jsonify({"success": False,
                     "error": "Access denied. Contact support if you believe this is an error."}), 403
 
-            # ── LAYER 9: Check if email is blocked ────────────────────────
             c.execute("""SELECT 1 FROM blocked_entities
                          WHERE entity_type='email' AND lower(value)=lower(%s) LIMIT 1""", (email,))
             if c.fetchone():
-                log.warning("blocked_email attempt email=%s order_id=%s", mask(email), order_id)
                 return jsonify({"success": False,
                     "error": "This email has been restricted. Contact support."}), 403
 
-            # ── LAYER 10: Rate limit by IP (5 submissions per hour) ───────
             if not check_rate(conn, ip, "ip"):
                 _log_attempt(conn, ip, email, order_id, blocked=True)
                 return jsonify({"success": False,
                     "error": "Too many submissions from your device. Please wait an hour."}), 429
 
-            # ── LAYER 11: Rate limit by email (3 submissions per hour) ────
             if not check_rate(conn, email, "email"):
                 _log_attempt(conn, ip, email, order_id, blocked=True)
                 return jsonify({"success": False,
                     "error": "Too many submissions from this email. Please wait an hour."}), 429
 
-            # ── LAYER 12: Check daily submission cap per email (max 3/day) ─
             c.execute("""SELECT COUNT(*) as cnt FROM orders
                          WHERE lower(email)=lower(%s)
                          AND submitted_at > NOW() - INTERVAL '24 hours'""", (email,))
@@ -551,48 +505,48 @@ def submit():
                 return jsonify({"success": False,
                     "error": "Maximum 3 orders can be submitted per day from one email."}), 429
 
-            # ── LAYER 13: DUPLICATE ORDER ID CHECK ────────────────────────
-            # This is the critical check — case-insensitive, exact match
+            # ── CHECK RETURNS DB TABLE FIRST ─────────────────────────
+            # If this order_id is already in our returns_blocklist table → reject instantly
+            c.execute("""SELECT 1 FROM returns_blocklist
+                         WHERE suborder_id = %s LIMIT 1""", (order_id,))
+            if c.fetchone():
+                _log_attempt(conn, ip, email, order_id, blocked=True)
+                log.warning("Submit blocked — order in returns_blocklist order_id=%s", order_id)
+                return jsonify({"success": False,
+                    "error": "This order was returned and is not eligible for stars."}), 409
+
             c.execute("""SELECT status, email FROM orders
                          WHERE lower(order_id)=lower(%s) LIMIT 1""", (order_id,))
             existing = c.fetchone()
             if existing:
                 _log_attempt(conn, ip, email, order_id, was_duplicate=True)
-                log.warning("duplicate_order_id order_id=%s new_email=%s existing_email=%s",
-                            order_id, mask(email), mask(existing.get("email", "")))
                 return jsonify({"success": False,
                     "error": "This Order ID has already been submitted and is being tracked. "
                              "Each order can only earn stars once."}), 409
 
-            # ── LAYER 14: Check same email + different order IDs suspicious ─
             c.execute("""SELECT COUNT(*) as cnt FROM orders
                          WHERE lower(email)=lower(%s)
                          AND submitted_at > NOW() - INTERVAL '7 days'""", (email,))
             week_count = (c.fetchone() or {}).get("cnt", 0)
 
-            # ── LAYER 15: Same IP submitted different emails? ─────────────
             c.execute("""SELECT COUNT(DISTINCT lower(email)) as cnt FROM orders
                          WHERE ip_address=%s
                          AND submitted_at > NOW() - INTERVAL '24 hours'""", (ip,))
             ip_email_count = (c.fetchone() or {}).get("cnt", 0)
 
-            # ── LAYER 16: Fraud score calculation ─────────────────────────
             fraud_score = 0
             fraud_reasons = []
 
             if ip_email_count >= 3:
                 fraud_score += 30
                 fraud_reasons.append(f"ip_multi_email:{ip_email_count}")
-
             if week_count >= 5:
                 fraud_score += 20
                 fraud_reasons.append(f"high_weekly_volume:{week_count}")
-
             if daily_count >= 2:
                 fraud_score += 10
                 fraud_reasons.append(f"daily_count:{daily_count}")
 
-            # Check if IP has many failed attempts recently
             c.execute("""SELECT COUNT(*) as cnt FROM submission_attempts
                          WHERE ip_address=%s
                          AND attempted_at > NOW() - INTERVAL '1 hour'
@@ -602,13 +556,12 @@ def submit():
                 fraud_score += 25
                 fraud_reasons.append(f"bad_attempts:{bad_attempts}")
 
-            # Auto-block IP if fraud score is extreme
             if fraud_score >= 80:
                 try:
                     c.execute("""INSERT INTO blocked_entities(entity_type, value, reason)
                                  VALUES('ip', %s, %s)
                                  ON CONFLICT(entity_type, value) DO NOTHING""",
-                              (ip, f"Auto-blocked: fraud_score={fraud_score} reasons={','.join(fraud_reasons)}"))
+                              (ip, f"Auto-blocked: fraud_score={fraud_score}"))
                     conn.commit()
                 except Exception:
                     pass
@@ -616,7 +569,6 @@ def submit():
                 return jsonify({"success": False,
                     "error": "Suspicious activity detected. Access temporarily restricted."}), 403
 
-        # ── LAYER 17: Save files ─────────────────────────────────────────
         pfx = random.randint(10000, 99999)
         op  = save_file(of, f"{pfx}_{secure_filename(of.filename)}")
         rp  = None
@@ -627,7 +579,6 @@ def submit():
                 rf.seek(0)
                 rp = save_file(rf, f"{pfx}r_{secure_filename(rf.filename)}")
 
-        # ── LAYER 18: Insert into DB (atomic) ────────────────────────────
         with conn.cursor() as c:
             c.execute("""INSERT INTO users(email)
                          VALUES(%s)
@@ -661,7 +612,6 @@ def submit():
             conn.rollback()
             return jsonify({"success": False, "error": "Token error — please retry."}), 500
 
-        # ── LAYER 19: Log this submission attempt ─────────────────────────
         _log_attempt(conn, ip, email, order_id)
         conn.commit()
 
@@ -685,7 +635,6 @@ def submit():
 
 def _log_attempt(conn, ip, email, order_id,
                  was_duplicate=False, was_invalid_fmt=False, blocked=False):
-    """Log every submission attempt for fraud analysis."""
     try:
         with conn.cursor() as c:
             c.execute("""INSERT INTO submission_attempts
@@ -697,126 +646,158 @@ def _log_attempt(conn, ip, email, order_id,
         log.warning("log_attempt_error: %s", ex)
 
 
-@app.route("/api/admin/run-approvals", methods=["POST"])
+# ── ADMIN: UPLOAD RETURNS CSV ─────────────────────────────────────────
+@app.route("/api/admin/upload-returns-csv", methods=["POST"])
 @require_admin
-def run_approvals():
-    """GitHub Actions calls this every day at 3 AM IST. No CSV needed — re-checks DB."""
-    conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
-    try:
-        cfg   = get_config(conn)
-        cool  = int(cfg.get("cooling_days","21"))
-        minck = int(cfg.get("min_csv_checks_before_approve","3"))
-        stale = int(cfg.get("max_csv_staleness_days","5"))
-        if cfg.get("auto_approve_enabled","true").lower() != "true":
-            return jsonify({"success":True,"approved_count":0,
-                            "message":"auto_approve disabled"}),200
-
-        with conn.cursor() as c:
-            c.execute("""SELECT order_id,email,token,csv_delivered_at,
-                                consecutive_delivered_count,ever_showed_return,csv_last_seen_at
-                         FROM orders WHERE status='under_review'""")
-            candidates = c.fetchall()
-
-        approved = []
-        for o in candidates:
-            if not can_approve(o, cool, minck, stale): continue
-            with conn.cursor() as c:
-                c.execute("""UPDATE orders SET status='approved',
-                    approved_at=NOW(), updated_at=NOW()
-                  WHERE order_id=%s AND status='under_review' RETURNING order_id""",(o["order_id"],))
-                if c.fetchone():
-                    audit(c, o["order_id"], "under_review", "approved",
-                          f"github_actions:cool={cool}d checks={o['consecutive_delivered_count']}")
-                    approved.append({"order_id":o["order_id"],
-                                     "email":mask(o["email"]),"token":o["token"]})
-            conn.commit()
-
-        log.info("run_approvals: %d approved", len(approved))
-        return jsonify({"success":True,"approved_count":len(approved),
-                        "approved_orders":approved}),200
-    except Exception as e:
-        conn.rollback(); log.error("run_approvals: %s",e)
-        return jsonify({"success":False,"error":str(e)}),500
-    finally:
-        conn.close()
-
-
-# ── ADMIN: UPLOAD CSV ─────────────────────────────────────────────────
-@app.route("/api/admin/upload-csv", methods=["POST"])
-@require_admin
-def upload_csv():
+def upload_returns_csv():
+    """
+    Upload Meesho Returns CSV (from Returns window download).
+    Logic:
+      1. Parse all Suborder Numbers from the CSV
+      2. Store them in returns_blocklist table
+      3. Reject/dispute any matching orders in our DB
+      4. Auto-approve eligible orders not in returns CSV
+    """
     if "csv_file" not in request.files:
-        return jsonify({"success":False,"error":"csv_file required"}),400
+        return jsonify({"success": False, "error": "csv_file required"}), 400
     f = request.files["csv_file"]
     if not f.filename.lower().endswith(".csv"):
-        return jsonify({"success":False,"error":"Must be .csv"}),400
+        return jsonify({"success": False, "error": "Must be .csv"}), 400
 
     conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
 
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-        f.save(tmp.name); tmp_path = tmp.name
+        f.save(tmp.name)
+        tmp_path = tmp.name
 
     try:
         with conn.cursor() as c:
-            c.execute("INSERT INTO csv_sync_log(filename,synced_by) VALUES(%s,'admin_upload') RETURNING id",
-                      (f.filename,))
+            c.execute("""INSERT INTO csv_sync_log(filename, synced_by)
+                         VALUES(%s, 'returns_csv_upload') RETURNING id""", (f.filename,))
             sid = c.fetchone()["id"]
         conn.commit()
 
-        stats = process_csv(tmp_path, conn, sid)
+        # Step 1: Parse returns CSV to get all returned suborder IDs
+        returned_ids = parse_return_csv(tmp_path)
 
+        # Step 2: Store ALL returned IDs in returns_blocklist (for future submit checks)
+        if returned_ids:
+            with conn.cursor() as c:
+                for rid in returned_ids:
+                    c.execute("""INSERT INTO returns_blocklist(suborder_id, source_filename, added_at)
+                                 VALUES(%s, %s, NOW())
+                                 ON CONFLICT(suborder_id) DO UPDATE SET
+                                   source_filename = EXCLUDED.source_filename,
+                                   added_at = NOW()""", (rid, f.filename))
+            conn.commit()
+            log.info("Stored %d returned IDs in returns_blocklist", len(returned_ids))
+
+        # Step 3: Process — reject/dispute matched orders
+        stats = process_return_csv(tmp_path, conn, sid)
+
+        # Step 4: Auto-approve orders NOT in returns (that passed cooling days)
+        approve_stats = auto_approve_eligible(conn, sid)
+        stats["auto_approved"] = approve_stats["approved"]
+        stats["auto_approve_checked"] = approve_stats["checked"]
+
+        # Step 5: Update sync log
         with conn.cursor() as c:
             c.execute("""UPDATE csv_sync_log SET
-                rows_processed=%s,rows_matched=%s,rows_delivered=%s,
-                rows_returned=%s,rows_approved=%s,rows_disputed=%s,rows_skipped=%s
+                rows_processed=%s, rows_matched=%s,
+                rows_returned=%s, rows_approved=%s, rows_disputed=%s, rows_skipped=%s
               WHERE id=%s""",
-                (stats["rows_processed"],stats["rows_matched"],stats["rows_delivered"],
-                 stats["rows_returned"],stats["rows_approved"],stats["rows_disputed"],
-                 stats["rows_skipped"],sid))
+                (stats["rows_processed"], stats["rows_matched"],
+                 stats["rows_rejected"], stats.get("auto_approved", 0),
+                 stats["rows_disputed"], stats["rows_skipped"], sid))
         conn.commit()
-        return jsonify({"success":True,"stats":stats,"sync_log_id":sid}),200
+
+        return jsonify({
+            "success": True,
+            "stats": stats,
+            "sync_log_id": sid,
+            "message": (
+                f"✅ Returns CSV processed: "
+                f"{stats['returned_ids_in_csv']} returned IDs found, "
+                f"{stats['rows_matched']} matched in DB, "
+                f"{stats['rows_rejected']} rejected, "
+                f"{stats['rows_disputed']} disputed, "
+                f"{stats.get('auto_approved',0)} auto-approved."
+            )
+        }), 200
+
     except Exception as e:
-        conn.rollback(); log.error("upload_csv: %s",e)
-        return jsonify({"success":False,"error":str(e)}),500
+        conn.rollback()
+        log.error("upload_returns_csv: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
         try: os.unlink(tmp_path)
         except Exception: pass
 
 
-# ── ADMIN: MARK STALE (called by GitHub Actions) ──────────────────────
+# ── ADMIN: RUN APPROVALS (GitHub Actions daily) ───────────────────────
+@app.route("/api/admin/run-approvals", methods=["POST"])
+@require_admin
+def run_approvals():
+    """GitHub Actions calls this daily at 3 AM IST."""
+    conn = get_db()
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
+    try:
+        with conn.cursor() as c:
+            c.execute("""INSERT INTO csv_sync_log(filename, synced_by)
+                         VALUES('github_actions_daily', 'github_actions') RETURNING id""")
+            sid = c.fetchone()["id"]
+        conn.commit()
+
+        approve_stats = auto_approve_eligible(conn, sid)
+
+        return jsonify({
+            "success": True,
+            "approved_count": approve_stats["approved"],
+            "checked_count": approve_stats["checked"],
+            "message": f"Daily run: {approve_stats['approved']} approved of {approve_stats['checked']} checked"
+        }), 200
+    except Exception as e:
+        conn.rollback()
+        log.error("run_approvals: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ── ADMIN: MARK STALE ─────────────────────────────────────────────────
 @app.route("/api/admin/mark-stale", methods=["POST"])
 @require_admin
 def mark_stale():
     conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
     try:
-        days = int(get_config(conn).get("stale_order_days","45"))
+        days = int(get_config(conn).get("stale_order_days", "45"))
         with conn.cursor() as c:
             c.execute("""UPDATE orders SET status='stale',
-                admin_note=COALESCE(admin_note||' | ','')
-                          ||'Auto-stale: no CSV match after '||%s||' days',
+                admin_note=COALESCE(admin_note||' | ','')||'Auto-stale after '||%s||' days',
                 updated_at=NOW()
               WHERE status='pending'
                 AND submitted_at < NOW()-(%s||' days')::INTERVAL
               RETURNING order_id""", (str(days), str(days)))
             rows = c.fetchall()
         conn.commit()
-        return jsonify({"success":True,"marked_count":len(rows)}),200
+        return jsonify({"success": True, "marked_count": len(rows)}), 200
     except Exception as e:
         conn.rollback()
-        return jsonify({"success":False,"error":str(e)}),500
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 
 
-# ── ADMIN: PING (login check — accepts POST) ──────────────────────────
+# ── ADMIN: PING ────────────────────────────────────────────────────────
 @app.route("/api/admin/ping", methods=["POST"])
 @require_admin
 def admin_ping():
-    """Used by admin.html to verify the secret is correct."""
     conn = get_db()
     counts = {}
     if conn:
@@ -838,21 +819,22 @@ def admin_ping():
     return jsonify({"success": True, "counts": counts}), 200
 
 
-# ── ADMIN: ORDERS ─────────────────────────────────────────────────────
+# ── ADMIN: ORDERS ──────────────────────────────────────────────────────
 @app.route("/api/admin/orders", methods=["GET"])
 @require_admin
 def admin_orders():
     sf  = request.args.get("status")
-    lim = min(int(request.args.get("limit",100)),500)
-    off = int(request.args.get("offset",0))
+    lim = min(int(request.args.get("limit", 100)), 500)
+    off = int(request.args.get("offset", 0))
     conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
     try:
         with conn.cursor() as c:
             if sf:
-                c.execute("SELECT * FROM v_admin_orders WHERE status=%s::order_status LIMIT %s OFFSET %s",(sf,lim,off))
+                c.execute("SELECT * FROM v_admin_orders WHERE status=%s::order_status LIMIT %s OFFSET %s", (sf, lim, off))
             else:
-                c.execute("SELECT * FROM v_admin_orders LIMIT %s OFFSET %s",(lim,off))
+                c.execute("SELECT * FROM v_admin_orders LIMIT %s OFFSET %s", (lim, off))
             rows = c.fetchall()
             c.execute("""SELECT
                 COUNT(*) FILTER(WHERE status='pending')      AS pending,
@@ -863,33 +845,35 @@ def admin_orders():
                 COUNT(*) FILTER(WHERE status='stale')        AS stale
               FROM orders""")
             counts = c.fetchone()
-        return jsonify({"success":True,"orders":[dict(r) for r in rows],
-                        "counts":dict(counts) if counts else {}}),200
+        return jsonify({"success": True, "orders": [dict(r) for r in rows],
+                        "counts": dict(counts) if counts else {}}), 200
     finally:
         conn.close()
 
 
-# ── ADMIN: UPDATE ORDER ───────────────────────────────────────────────
+# ── ADMIN: UPDATE ORDER ────────────────────────────────────────────────
 @app.route("/api/admin/update-order", methods=["POST"])
 @require_admin
 def update_order():
     d   = request.get_json(silent=True) or {}
-    oid = d.get("order_id","").strip()
-    ns  = d.get("status","").strip()
-    rr  = d.get("rejection_reason","").strip()
-    an  = d.get("admin_note","").strip()
-    VALID = {"pending","under_review","approved","rejected","flagged","disputed"}
+    oid = d.get("order_id", "").strip()
+    ns  = d.get("status", "").strip()
+    rr  = d.get("rejection_reason", "").strip()
+    an  = d.get("admin_note", "").strip()
+    VALID = {"pending", "under_review", "approved", "rejected", "flagged", "disputed"}
     if not oid or ns not in VALID:
-        return jsonify({"success":False,"error":"Invalid params"}),400
+        return jsonify({"success": False, "error": "Invalid params"}), 400
     if ns == "rejected" and not rr:
-        return jsonify({"success":False,"error":"rejection_reason required"}),400
+        return jsonify({"success": False, "error": "rejection_reason required"}), 400
     conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
     try:
         with conn.cursor() as c:
-            c.execute("SELECT status FROM orders WHERE order_id=%s",(oid,))
+            c.execute("SELECT status FROM orders WHERE order_id=%s", (oid,))
             cur = c.fetchone()
-            if not cur: return jsonify({"success":False,"error":"Not found"}),404
+            if not cur:
+                return jsonify({"success": False, "error": "Not found"}), 404
             c.execute("""UPDATE orders SET
                 status=%s::order_status,
                 rejection_reason=COALESCE(NULLIF(%s,''),rejection_reason),
@@ -898,28 +882,55 @@ def update_order():
                 rejected_at=CASE WHEN %s='rejected' THEN NOW() ELSE rejected_at END,
                 updated_at=NOW()
               WHERE order_id=%s RETURNING order_id,status,email""",
-                (ns,rr,an,ns,ns,oid))
+                (ns, rr, an, ns, ns, oid))
             upd = c.fetchone()
             audit(c, oid, cur["status"], ns, f"admin_override:{an or rr}")
         conn.commit()
-        return jsonify({"success":True,"order":dict(upd)}),200
+        return jsonify({"success": True, "order": dict(upd)}), 200
     except Exception as e:
         conn.rollback()
-        return jsonify({"success":False,"error":str(e)}),500
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 
 
-# ── ADMIN: CONFIG ─────────────────────────────────────────────────────
+# ── ADMIN: RETURNS BLOCKLIST ───────────────────────────────────────────
+@app.route("/api/admin/returns-blocklist", methods=["GET"])
+@require_admin
+def returns_blocklist():
+    """View all order IDs in the returns blocklist."""
+    conn = get_db()
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
+    try:
+        lim = min(int(request.args.get("limit", 200)), 1000)
+        with conn.cursor() as c:
+            c.execute("""SELECT suborder_id, source_filename, added_at
+                         FROM returns_blocklist
+                         ORDER BY added_at DESC LIMIT %s""", (lim,))
+            rows = c.fetchall()
+            c.execute("SELECT COUNT(*) as total FROM returns_blocklist")
+            total = c.fetchone()["total"]
+        return jsonify({
+            "success": True,
+            "total": total,
+            "blocklist": [dict(r) for r in rows]
+        }), 200
+    finally:
+        conn.close()
+
+
+# ── ADMIN: CONFIG ──────────────────────────────────────────────────────
 @app.route("/api/admin/config", methods=["GET"])
 @require_admin
 def get_cfg():
     conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
     try:
         with conn.cursor() as c:
             c.execute("SELECT key,value,description,updated_at FROM system_config ORDER BY key")
-            return jsonify({"success":True,"config":[dict(r) for r in c.fetchall()]}),200
+            return jsonify({"success": True, "config": [dict(r) for r in c.fetchall()]}), 200
     finally:
         conn.close()
 
@@ -927,41 +938,46 @@ def get_cfg():
 @require_admin
 def set_cfg():
     d = request.get_json(silent=True) or {}
-    k = d.get("key","").strip(); v = d.get("value","").strip()
-    OK = {"cooling_days","min_csv_checks_before_approve",
-          "max_csv_staleness_days","auto_approve_enabled","stale_order_days"}
-    if k not in OK: return jsonify({"success":False,"error":f"Not editable: {k}"}),400
+    k = d.get("key", "").strip()
+    v = d.get("value", "").strip()
+    OK = {"cooling_days", "min_csv_checks_before_approve",
+          "max_csv_staleness_days", "auto_approve_enabled", "stale_order_days"}
+    if k not in OK:
+        return jsonify({"success": False, "error": f"Not editable: {k}"}), 400
     conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
     try:
         with conn.cursor() as c:
-            c.execute("UPDATE system_config SET value=%s,updated_at=NOW() WHERE key=%s RETURNING key,value",(v,k))
+            c.execute("UPDATE system_config SET value=%s,updated_at=NOW() WHERE key=%s RETURNING key,value", (v, k))
             upd = c.fetchone()
         conn.commit()
-        if not upd: return jsonify({"success":False,"error":"Key not found"}),404
-        return jsonify({"success":True,"config":dict(upd)}),200
+        if not upd:
+            return jsonify({"success": False, "error": "Key not found"}), 404
+        return jsonify({"success": True, "config": dict(upd)}), 200
     except Exception as e:
-        conn.rollback(); return jsonify({"success":False,"error":str(e)}),500
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 
 
-# ── ADMIN: SYNC LOGS ──────────────────────────────────────────────────
+# ── ADMIN: SYNC LOGS ───────────────────────────────────────────────────
 @app.route("/api/admin/sync-logs", methods=["GET"])
 @require_admin
 def sync_logs():
     conn = get_db()
-    if not conn: return jsonify({"success":False,"error":"Database unavailable"}),500
+    if not conn:
+        return jsonify({"success": False, "error": "Database unavailable"}), 500
     try:
         with conn.cursor() as c:
             c.execute("SELECT * FROM csv_sync_log ORDER BY synced_at DESC LIMIT 30")
-            return jsonify({"success":True,"sync_logs":[dict(r) for r in c.fetchall()]}),200
+            return jsonify({"success": True, "sync_logs": [dict(r) for r in c.fetchall()]}), 200
     finally:
         conn.close()
 
 
-
-# ── API: GET STARS (check-stars page) ────────────────────────────────
+# ── API: GET STARS ─────────────────────────────────────────────────────
 @app.route("/api/get-stars", methods=["POST"])
 def get_stars():
     data  = request.get_json(silent=True) or {}
@@ -976,19 +992,13 @@ def get_stars():
 
     try:
         with conn.cursor() as c:
-            # Get user record
-            c.execute("""
-                SELECT total_stars, submission_count, created_at
-                FROM users WHERE lower(email)=lower(%s)
-            """, (email,))
+            c.execute("""SELECT total_stars, submission_count, created_at
+                FROM users WHERE lower(email)=lower(%s)""", (email,))
             user = c.fetchone()
-
             if not user:
                 return jsonify({"success": True, "found": False}), 200
 
-            # Get order breakdown by status
-            c.execute("""
-                SELECT
+            c.execute("""SELECT
                   COUNT(*) FILTER(WHERE status='approved')      AS approved,
                   COUNT(*) FILTER(WHERE status='pending')       AS pending,
                   COUNT(*) FILTER(WHERE status='under_review')  AS under_review,
@@ -996,18 +1006,13 @@ def get_stars():
                   COUNT(*) FILTER(WHERE status='disputed')      AS disputed,
                   COUNT(*) FILTER(WHERE status='stale')         AS stale,
                   COUNT(*)                                      AS total
-                FROM orders WHERE lower(email)=lower(%s)
-            """, (email,))
+                FROM orders WHERE lower(email)=lower(%s)""", (email,))
             counts = c.fetchone() or {}
 
-            # Get recent orders list (last 10)
-            c.execute("""
-                SELECT order_id, status, submitted_at, approved_at,
-                       token, rejection_reason
-                FROM orders
-                WHERE lower(email)=lower(%s)
-                ORDER BY submitted_at DESC LIMIT 10
-            """, (email,))
+            c.execute("""SELECT order_id, status, submitted_at, approved_at,
+                               token, rejection_reason
+                FROM orders WHERE lower(email)=lower(%s)
+                ORDER BY submitted_at DESC LIMIT 10""", (email,))
             orders = c.fetchall()
 
         return jsonify({
@@ -1021,11 +1026,11 @@ def get_stars():
             "total_orders": counts.get("total", 0),
             "orders": [
                 {
-                    "order_id":   o["order_id"],
-                    "status":     o["status"],
-                    "submitted":  o["submitted_at"].isoformat() if o.get("submitted_at") else None,
-                    "approved":   o["approved_at"].isoformat()  if o.get("approved_at")  else None,
-                    "token":      o["token"],
+                    "order_id":  o["order_id"],
+                    "status":    o["status"],
+                    "submitted": o["submitted_at"].isoformat() if o.get("submitted_at") else None,
+                    "approved":  o["approved_at"].isoformat()  if o.get("approved_at")  else None,
+                    "token":     o["token"],
                     "rejection_reason": o.get("rejection_reason"),
                 }
                 for o in orders
@@ -1039,10 +1044,9 @@ def get_stars():
         conn.close()
 
 
-# ── WAKE: pre-warm endpoint (called before submit) ───────────────────
+# ── WAKE ───────────────────────────────────────────────────────────────
 @app.route("/api/wake", methods=["GET"])
 def wake():
-    """Frontend calls this on page load to pre-warm DB connection."""
     conn = get_db()
     if conn:
         conn.close()
@@ -1050,29 +1054,21 @@ def wake():
     return jsonify({"status": "starting"}), 503
 
 
-# ── HEALTH (UptimeRobot pings this every 5 min) ───────────────────────
+# ── HEALTH ─────────────────────────────────────────────────────────────
 @app.route("/health")
 @app.route("/api/health")
 def health():
-    """
-    FAST health check — responds instantly without DB query.
-    UptimeRobot pings this every 5 min to keep Render awake.
-    Fast response = Render never thinks it's down = never sleeps.
-    """
     if not DATABASE_URL:
-        return jsonify({"status":"unhealthy","error":"DATABASE_URL missing"}),500
-    # Respond immediately — don't wait for DB to keep UptimeRobot happy
+        return jsonify({"status": "unhealthy", "error": "DATABASE_URL missing"}), 500
     return jsonify({
         "status":     "healthy",
         "database":   "supabase",
         "automation": "github_actions",
-        "project":    "fqsvksjhphutjnkvgnmk",
-        "uptime":     "render_free"
+        "uptime":     "vercel"
     }), 200
 
 @app.route("/health/db")
 def health_db():
-    """Full DB health check — only call manually, not for UptimeRobot."""
     conn = get_db()
     if conn:
         try:
@@ -1080,26 +1076,25 @@ def health_db():
                 c.execute("SELECT 1")
         except Exception:
             conn.close()
-            return jsonify({"status":"unhealthy","database":"error"}),500
+            return jsonify({"status": "unhealthy", "database": "error"}), 500
         conn.close()
-        return jsonify({"status":"healthy","database":"connected"}),200
-    return jsonify({"status":"unhealthy","database":"disconnected"}),500
+        return jsonify({"status": "healthy", "database": "connected"}), 200
+    return jsonify({"status": "unhealthy", "database": "disconnected"}), 500
 
 
-# ── ERROR HANDLERS ────────────────────────────────────────────────────
+# ── ERROR HANDLERS ─────────────────────────────────────────────────────
 @app.errorhandler(413)
 def too_large(_):
     if request.path.startswith("/api/"):
-        return jsonify({"success":False,"error":"File too large (max 5 MB)"}),413
-    return "File too large",413
+        return jsonify({"success": False, "error": "File too large (max 5 MB)"}), 413
+    return "File too large", 413
 
 @app.errorhandler(404)
 def not_found(_):
     if request.path.startswith("/api/"):
-        return jsonify({"success":False,"error":"Not found"}),404
-    return "Not Found",404
+        return jsonify({"success": False, "error": "Not found"}), 404
+    return "Not Found", 404
 
 
-# ✅ Correct — Vercel picks up the `app` variable
 if __name__ == '__main__':
     app.run(debug=True)

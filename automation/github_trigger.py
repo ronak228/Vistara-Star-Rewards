@@ -1,7 +1,7 @@
 """
 automation/github_trigger.py
 Runs inside GitHub Actions every day at 3 AM IST.
-Calls Render app to run approvals and mark stale orders.
+Calls Vercel app to auto-approve eligible orders and reject stale/fake ones.
 """
 
 import os, sys, requests, time
@@ -12,13 +12,13 @@ ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
 if not APP_URL:
     print("ERROR: APP_URL secret not set in GitHub.")
     print("Go to: repo Settings → Secrets and variables → Actions → New repository secret")
-    print("Add: APP_URL = https://vistara-star-rewards-xl6i.onrender.com")
+    print("Add: APP_URL = https://your-project.vercel.app")
     sys.exit(1)
 
 if not ADMIN_SECRET:
     print("ERROR: ADMIN_SECRET secret not set in GitHub.")
     print("Go to: repo Settings → Secrets and variables → Actions → New repository secret")
-    print("Add: ADMIN_SECRET = your admin password from Render")
+    print("Add: ADMIN_SECRET = your admin password from Vercel env vars")
     sys.exit(1)
 
 HDR = {"X-Admin-Secret": ADMIN_SECRET, "Content-Type": "application/json"}
@@ -43,7 +43,7 @@ def main():
     print(f"=== Vistara Daily Run ===")
     print(f"App: {APP_URL}\n")
 
-    # 1. Health check
+    # 1. Health check — Vercel spins up instantly, no warm-up needed
     print("[1/3] Health check...")
     h = call("/health", "GET")
     status = h.get("status", "unknown")
@@ -52,32 +52,32 @@ def main():
     if status != "healthy":
         print("      WARNING: Server unhealthy but continuing...")
 
-    # 2. Run approvals — 0 approvals is NOT an error
+    # 2. Run approvals — auto-approve under_review orders past 15 days
+    # This runs every day so even if you forget to upload CSV on Sunday,
+    # verified orders will still be approved on time automatically.
     print("\n[2/3] Running approvals...")
     r = call("/api/admin/run-approvals")
     if r.get("success"):
         n = r.get("approved_count", 0)
-        print(f"      OK — {n} order(s) approved today")
-        for o in r.get("approved_orders", []):
-            print(f"        ✓ {o.get('order_id')} | {o.get('email')} | token:{o.get('token')}")
+        s = r.get("stale_rejected", 0)
+        print(f"      OK — {n} order(s) approved, {s} stale/fake rejected")
         if n == 0:
-            print("      (No orders ready yet — normal if no deliveries confirmed)")
+            print("      (No orders ready yet — normal if < 15 days since submission)")
     else:
         err = r.get("error", "unknown")
         print(f"      WARNING: {err}")
-        # Don't exit — continue to next step
 
-    # 3. Mark stale orders
+    # 3. Mark stale orders — reject fake/unverified orders older than 20 days
     print("\n[3/3] Marking stale orders...")
     s = call("/api/admin/mark-stale")
     if s.get("success"):
         n = s.get("marked_count", 0)
-        print(f"      OK — {n} stale order(s) marked")
+        print(f"      OK — {n} stale order(s) rejected")
     else:
         print(f"      WARNING: {s.get('error', 'unknown')}")
 
-    print("\n=== Done — all steps completed successfully ===")
-    sys.exit(0)  # Always exit 0 (success) unless secrets missing
+    print("\n=== Done ===")
+    sys.exit(0)  # Always exit 0 unless secrets missing
 
 if __name__ == "__main__":
     main()

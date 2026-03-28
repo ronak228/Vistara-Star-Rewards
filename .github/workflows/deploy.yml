@@ -4,21 +4,18 @@ on:
   push:
     branches:
       - main
-  schedule:
-    # 3:00 AM IST = 21:30 UTC (previous day)
-    - cron: '30 21 * * *'
   workflow_dispatch:
     inputs:
       reason:
-        description: 'Reason for manual run'
+        description: 'Reason for manual deploy'
         required: false
-        default: 'manual trigger'
+        default: 'manual deploy'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # Job 1 — Auto deploy to Vercel on every push
+  # Deploy to Vercel on every push to main only
   deploy:
     runs-on: ubuntu-latest
     steps:
@@ -33,29 +30,6 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-  # Job 2 — Daily order processor at 3AM IST
-  process-orders:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install requests
-
-      - name: Run daily processor
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-        run: python automation/github_trigger.py
-
       - name: Done
         if: always()
-        run: echo "Finished at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+        run: echo "Deployed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

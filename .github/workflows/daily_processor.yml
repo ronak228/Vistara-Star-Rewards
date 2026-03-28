@@ -31,21 +31,6 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Wake up Render
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-        run: |
-          echo "Waking up Render server..."
-          for i in 1 2 3; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/health" || echo "000")
-            echo "Attempt $i: HTTP $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "Server awake!"
-              break
-            fi
-            sleep 15
-          done
-
       - name: Run daily processor
         env:
           APP_URL: ${{ secrets.APP_URL }}

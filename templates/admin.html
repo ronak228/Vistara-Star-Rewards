@@ -7,29 +7,30 @@
 <style>
 :root {
   --primary:#FF6B6B; --secondary:#4ECDC4; --success:#2ECC71;
-  --warning:#F39C12; --danger:#E74C3C;
+  --warning:#F39C12; --danger:#E74C3C; --blue:#3498db;
   --bg:#F8F9FA; --card:#FFFFFF; --text:#1A1A1A; --muted:#666; --border:#E0E0E0;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
 .sidebar{position:fixed;top:0;left:0;width:196px;height:100vh;background:#1A1A1A;color:#fff;padding:0}
-.logo{padding:18px 20px;font-weight:700;font-size:15px;color:var(--primary);border-bottom:1px solid #2a2a2a;letter-spacing:.3px}
+.logo{padding:18px 20px;font-weight:700;font-size:15px;color:var(--primary);border-bottom:1px solid #2a2a2a}
 .nav a{display:block;padding:11px 20px;color:#bbb;text-decoration:none;transition:all .15s;font-size:13px}
 .nav a:hover,.nav a.active{background:#2a2a2a;color:#fff}
 .main{margin-left:196px;padding:22px;min-height:100vh}
 .hrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
 .hrow h1{font-size:20px;font-weight:700}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:18px}
 .stat{background:var(--card);border-radius:10px;padding:14px 12px;border:1px solid var(--border);text-align:center}
 .stat-n{font-size:26px;font-weight:700}
 .stat-l{font-size:11px;color:var(--muted);margin-top:3px}
-.stat.pending .stat-n{color:var(--warning)}
-.stat.review  .stat-n{color:#3498db}
+.stat.pending  .stat-n{color:var(--warning)}
+.stat.review   .stat-n{color:var(--blue)}
 .stat.approved .stat-n{color:var(--success)}
 .stat.rejected .stat-n{color:var(--danger)}
 .stat.disputed .stat-n{color:#9B59B6}
+.stat.unverified .stat-n{color:#e67e22}
 .card{background:var(--card);border-radius:10px;padding:18px;border:1px solid var(--border);margin-bottom:14px}
-.card-t{font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text)}
+.card-t{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text)}
 table{width:100%;border-collapse:collapse}
 th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-size:13px}
 th{background:#F8F9FA;font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -42,11 +43,12 @@ tr:hover td{background:#FAFAFA}
 .badge-disputed {background:#EDE9FE;color:#5B21B6}
 .badge-stale    {background:#F1F5F9;color:#475569}
 .btn{padding:7px 14px;border:none;border-radius:7px;cursor:pointer;font-weight:600;font-size:12px;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
-.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#e05a5a}
-.btn-success{background:var(--success);color:#fff}.btn-success:hover{background:#27ae60}
-.btn-danger {background:var(--danger);color:#fff}.btn-danger:hover{background:#c0392b}
+.btn-primary  {background:var(--primary);color:#fff}.btn-primary:hover{opacity:.88}
+.btn-success  {background:var(--success);color:#fff}.btn-success:hover{opacity:.88}
+.btn-danger   {background:var(--danger);color:#fff}.btn-danger:hover{opacity:.88}
+.btn-blue     {background:var(--blue);color:#fff}.btn-blue:hover{opacity:.88}
 .btn-secondary{background:#F1F5F9;color:var(--text);border:1px solid var(--border)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:disabled {opacity:.5;cursor:not-allowed}
 .form-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
 .fgroup{display:flex;flex-direction:column;gap:3px}
 .fgroup label{font-size:11px;font-weight:600;color:var(--muted)}
@@ -69,6 +71,8 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
 .sync-info{font-size:12px;color:var(--muted)}
 .table-wrap{overflow-x:auto}
 .ready-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:7px;margin-bottom:7px;font-size:13px}
+.csv-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:900px){.csv-grid{grid-template-columns:1fr}}
 @media(max-width:768px){.sidebar{display:none}.main{margin-left:0;padding:14px}}
 </style>
 </head>
@@ -96,7 +100,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
     <button class="btn btn-primary" style="width:100%" id="loginBtn" onclick="login()">Login</button>
   </div>
 
-  <!-- Main (hidden until authed) -->
+  <!-- Main panel -->
   <div id="main" style="display:none">
 
     <div class="hrow">
@@ -116,42 +120,102 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
 
     <!-- DASHBOARD -->
     <div id="section-dashboard" class="section active">
+
+      <!-- Stats -->
       <div class="stats">
-        <div class="stat pending" ><div class="stat-n" id="st-p">—</div><div class="stat-l">Pending</div></div>
-        <div class="stat review"  ><div class="stat-n" id="st-r">—</div><div class="stat-l">Under Review</div></div>
-        <div class="stat approved"><div class="stat-n" id="st-a">—</div><div class="stat-l">Approved</div></div>
-        <div class="stat rejected"><div class="stat-n" id="st-j">—</div><div class="stat-l">Rejected</div></div>
-        <div class="stat disputed"><div class="stat-n" id="st-d">—</div><div class="stat-l">Disputed</div></div>
+        <div class="stat pending"    ><div class="stat-n" id="st-p">—</div><div class="stat-l">Pending</div></div>
+        <div class="stat review"     ><div class="stat-n" id="st-r">—</div><div class="stat-l">Under Review</div></div>
+        <div class="stat approved"   ><div class="stat-n" id="st-a">—</div><div class="stat-l">Approved ⭐</div></div>
+        <div class="stat rejected"   ><div class="stat-n" id="st-j">—</div><div class="stat-l">Rejected</div></div>
+        <div class="stat disputed"   ><div class="stat-n" id="st-d">—</div><div class="stat-l">Disputed</div></div>
+        <div class="stat unverified" ><div class="stat-n" id="st-u">—</div><div class="stat-l">Unverified ⚠️</div></div>
       </div>
 
+      <!-- How it works info box -->
+      <div class="card" style="background:#f0f9ff;border-color:#bae6fd">
+        <div class="card-t" style="color:#0369a1">📋 How the 2-CSV System Works</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12px;color:#334155">
+          <div>
+            <strong style="color:#0369a1">📥 CSV 1 — Orders CSV (weekly)</strong><br>
+            Download from: Meesho → Orders → All Orders → Download<br><br>
+            ✅ Verifies submitted Order IDs are <b>real Meesho orders</b><br>
+            ✅ Moves verified orders to "Under Review"<br>
+            ✅ Auto-approves if 15+ days passed + not returned<br>
+            ❌ Rejects fake/random IDs after 20 days unverified
+          </div>
+          <div>
+            <strong style="color:#e74c3c">🚫 CSV 2 — Returns CSV (weekly)</strong><br>
+            Download from: Meesho → Orders → Returns → Download<br><br>
+            ❌ Instantly rejects orders found in returns<br>
+            ❌ Disputes already-approved orders (late returns)<br>
+            🔒 Blocks those IDs forever in returns blocklist<br>
+            ✅ Also triggers auto-approve for clean orders
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:8px 12px;background:#fff;border-radius:6px;font-size:12px;color:#64748b;border:1px solid #e2e8f0">
+          💡 <b>Your weekly routine:</b> Every Sunday → Download both CSVs from Meesho → Upload Orders CSV first → Upload Returns CSV → Done. GitHub Action handles daily auto-approvals at 3AM IST.
+        </div>
+      </div>
+
+      <!-- Dual CSV upload -->
+      <div class="csv-grid">
+
+        <!-- Orders CSV -->
+        <div class="card" style="border:2px solid #3498db33">
+          <div class="card-t" style="color:#3498db">📥 CSV 1 — Orders CSV</div>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:10px">
+            All Meesho orders → verifies real order IDs → moves to "Under Review" → auto-approves after 15 days.
+          </p>
+          <div style="background:#eff6ff;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#1d4ed8;border-left:3px solid #3498db">
+            📌 Meesho → Orders → All Orders → Download CSV
+          </div>
+          <input type="file" id="orders-csv-file" accept=".csv" style="width:100%;margin-bottom:10px">
+          <button class="btn btn-blue" style="width:100%" onclick="uploadOrdersCsv()">
+            ✅ Upload Orders CSV
+          </button>
+          <div id="orders-csv-result" style="margin-top:10px"></div>
+        </div>
+
+        <!-- Returns CSV -->
+        <div class="card" style="border:2px solid #e74c3c33">
+          <div class="card-t" style="color:#e74c3c">🚫 CSV 2 — Returns CSV</div>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:10px">
+            RTO + Customer returns only → instantly rejects those order IDs forever.
+          </p>
+          <div style="background:#fff3f3;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#c0392b;border-left:3px solid #e74c3c">
+            📌 Meesho → Orders → Returns → Download CSV
+          </div>
+          <input type="file" id="returns-csv-file" accept=".csv" style="width:100%;margin-bottom:10px">
+          <button class="btn btn-danger" style="width:100%" onclick="uploadReturnsCsv()">
+            🚫 Upload Returns CSV
+          </button>
+          <div id="returns-csv-result" style="margin-top:10px"></div>
+        </div>
+
+      </div>
+
+      <!-- Ready to approve -->
       <div class="card">
         <div class="card-t">Orders ready to approve</div>
         <div id="ready-list"><p style="color:var(--muted);font-size:13px">Loading…</p></div>
       </div>
 
-      <div class="card" style="border:2px solid #e74c3c22">
-        <div class="card-t" style="color:#e74c3c">📥 Upload Returns CSV</div>
-        <p style="color:var(--muted);font-size:12px;margin-bottom:8px">
-          <strong>How to get it:</strong> Meesho Seller Panel → <em>Orders → Returns</em> → Download CSV.<br>
-          Upload here → system <strong>instantly rejects</strong> any submitted orders found in this file,
-          then <strong>auto-approves</strong> all clean orders that have passed the cooling period.
-        </p>
-        <div style="background:#fff3f3;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#c0392b;border-left:3px solid #e74c3c">
-          ⚠️ This CSV contains <strong>RTO + Customer Returns only</strong>. Any order ID found here = immediately rejected.
+      <!-- Blocklists -->
+      <div class="csv-grid">
+        <div class="card">
+          <div class="card-t">🔒 Returns Blocklist</div>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:10px">Order IDs permanently blocked (returned/RTO).</p>
+          <button class="btn btn-secondary" onclick="loadReturnBlocklist()" style="font-size:12px">View Blocklist</button>
+          <div id="return-blocklist-result" style="margin-top:10px"></div>
         </div>
-        <div class="form-row">
-          <input type="file" id="csv-file" accept=".csv" style="flex:1">
-          <button class="btn btn-primary" style="background:#e74c3c" onclick="uploadReturnsCsv()">🚫 Upload Returns & Process</button>
+        <div class="card">
+          <div class="card-t">✅ Orders Whitelist</div>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:10px">Order IDs verified as real Meesho orders.</p>
+          <button class="btn btn-secondary" onclick="loadOrdersWhitelist()" style="font-size:12px">View Whitelist</button>
+          <div id="orders-whitelist-result" style="margin-top:10px"></div>
         </div>
-        <div id="csv-result"></div>
       </div>
 
-      <div class="card">
-        <div class="card-t">📋 Returns Blocklist</div>
-        <p style="color:var(--muted);font-size:12px;margin-bottom:10px">All order IDs permanently blocked from earning stars (sourced from Returns CSVs).</p>
-        <button class="btn" onclick="loadBlocklist()" style="font-size:12px;padding:6px 14px">View Blocklist</button>
-        <div id="blocklist-result" style="margin-top:10px"></div>
-      </div>
     </div>
 
     <!-- ORDERS -->
@@ -177,12 +241,12 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
             <thead>
               <tr>
                 <th>Order ID</th><th>Email</th><th>Status</th>
-                <th>CSV Status</th><th>Streak</th><th>Cooling left</th>
-                <th>Ready?</th><th>Submitted</th><th>Actions</th>
+                <th>Verified?</th><th>Days Since Submit</th>
+                <th>Submitted</th><th>Actions</th>
               </tr>
             </thead>
             <tbody id="orders-body">
-              <tr><td colspan="9" style="text-align:center;color:var(--muted)">Loading…</td></tr>
+              <tr><td colspan="7" style="text-align:center;color:var(--muted)">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -203,7 +267,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
         <div class="card-t">System Configuration</div>
         <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Changes apply immediately — no redeploy needed.</p>
         <table>
-          <thead><tr><th>Key</th><th>Current value</th><th>Description</th><th>Edit</th></tr></thead>
+          <thead><tr><th>Key</th><th>Current Value</th><th>Description</th><th>Edit</th></tr></thead>
           <tbody id="config-body"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -220,7 +284,7 @@ let SECRET = '';
 function toast(msg, type='') {
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = `toast ${type} show`;
-  setTimeout(() => t.className='toast', 3000);
+  setTimeout(() => t.className='toast', 3500);
 }
 
 function show(name, el) {
@@ -239,77 +303,50 @@ async function api(path, opts={}) {
   if (method !== 'GET' && !opts.headers?.['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
-  const res = await fetch(path, { ...opts, method, headers });
-  if (!res.ok && res.status === 405) return {success:false, error:'method_not_allowed'};
-  try { return await res.json(); } catch(e) { return {success:false, error:'parse_error'}; }
-}
-
-async function wakeUp() {
-  // Render free plan sleeps when idle. Ping /health first to wake it up.
-  const btn = document.getElementById('loginBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Waking up server...'; }
-  try {
-    const r = await fetch('/health', {method:'GET'});
-    if (r.ok) {
-      if (btn) { btn.textContent = 'Connected! Logging in...'; }
-      return true;
-    }
-  } catch(e) {}
-  // Server might just be starting — wait 8 seconds and try again
-  await new Promise(res => setTimeout(res, 8000));
-  if (btn) { btn.textContent = 'Retrying...'; }
-  try { await fetch('/health', {method:'GET'}); } catch(e) {}
-  return true; // proceed anyway
+  const res = await fetch(path, {...opts, method, headers});
+  try { return await res.json(); }
+  catch(e) { return {success:false, error:'parse_error'}; }
 }
 
 async function login() {
   SECRET = document.getElementById('secret').value.trim();
   if (!SECRET) return toast('Enter admin secret','err');
-
-  // Wake up Render server first (may be sleeping if no traffic)
-  await wakeUp();
-
   const btn = document.getElementById('loginBtn');
-  if (btn) { btn.textContent = 'Verifying...'; }
-
+  btn.disabled=true; btn.textContent='Verifying…';
   try {
     const r = await api('/api/admin/ping');
     if (!r.success) {
-      if (btn) { btn.disabled=false; btn.textContent='Login'; }
-      toast('Wrong secret — check ADMIN_SECRET in Render env vars','err');
-      SECRET=''; return;
+      btn.disabled=false; btn.textContent='Login';
+      toast('Wrong secret','err'); SECRET=''; return;
     }
     document.getElementById('gate').style.display='none';
     document.getElementById('main').style.display='block';
-    if (r.counts) {
-      document.getElementById('st-p').textContent = r.counts.pending||0;
-      document.getElementById('st-r').textContent = r.counts.under_review||0;
-      document.getElementById('st-a').textContent = r.counts.approved||0;
-      document.getElementById('st-j').textContent = r.counts.rejected||0;
-      document.getElementById('st-d').textContent = r.counts.disputed||0;
-    }
+    updateCounts(r.counts || {});
     loadDashboard();
   } catch(e) {
-    if (btn) { btn.disabled=false; btn.textContent='Login'; }
-    toast('Server is starting up — please wait 30 seconds and try again','err');
-    SECRET='';
+    btn.disabled=false; btn.textContent='Login';
+    toast('Server error — try again','err'); SECRET='';
   }
 }
 
-async function loadDashboard() {
-  const r = await api('/api/admin/orders?limit=200', {method:'GET'});
-  if (!r.success) return;
-  const c = r.counts || {};
+function updateCounts(c) {
   document.getElementById('st-p').textContent = c.pending||0;
   document.getElementById('st-r').textContent = c.under_review||0;
   document.getElementById('st-a').textContent = c.approved||0;
   document.getElementById('st-j').textContent = c.rejected||0;
   document.getElementById('st-d').textContent = c.disputed||0;
+  document.getElementById('st-u').textContent = c.unverified_pending||0;
+}
+
+async function loadDashboard() {
+  const r = await api('/api/admin/orders?limit=200', {method:'GET'});
+  if (!r.success) return;
+  updateCounts(r.counts||{});
 
   const ready = (r.orders||[]).filter(o=>o.ready_to_approve);
   const el = document.getElementById('ready-list');
   if (!ready.length) {
-    el.innerHTML = '<p style="color:var(--muted);font-size:13px">No orders ready to approve yet. Upload a fresh CSV to check.</p>';
+    el.innerHTML = '<p style="color:var(--muted);font-size:13px">No orders ready yet — upload Orders CSV to verify and approve.</p>';
   } else {
     el.innerHTML = `<p style="color:var(--success);font-weight:600;margin-bottom:10px;font-size:13px">${ready.length} order(s) ready ✓</p>` +
       ready.map(o=>`
@@ -319,13 +356,12 @@ async function loadDashboard() {
         </div>`).join('');
   }
 
-  // Sync status
   const sl = await api('/api/admin/sync-logs', {method:'GET'});
   const last = (sl.sync_logs||[])[0];
   const si = document.getElementById('sync-info');
   if (last) {
     const h = Math.round((Date.now()-new Date(last.synced_at))/3600000);
-    si.innerHTML = `<span class="dot ${h<48?'green':'red'}"></span>Last sync: ${h}h ago`;
+    si.innerHTML = `<span class="dot ${h<72?'green':'red'}"></span>Last sync: ${h}h ago`;
   } else {
     si.innerHTML = `<span class="dot red"></span>No CSV uploaded yet`;
   }
@@ -335,38 +371,36 @@ async function loadOrders() {
   const sf = document.getElementById('status-filter').value;
   const r  = await api(`/api/admin/orders?limit=150${sf?'&status='+sf:''}`, {method:'GET'});
   if (!r.success) return toast('Failed to load orders','err');
-  const c = r.counts||{};
-  document.getElementById('st-p').textContent = c.pending||0;
-  document.getElementById('st-r').textContent = c.under_review||0;
-  document.getElementById('st-a').textContent = c.approved||0;
-  document.getElementById('st-j').textContent = c.rejected||0;
-  document.getElementById('st-d').textContent = c.disputed||0;
-
+  updateCounts(r.counts||{});
   const tb = document.getElementById('orders-body');
   if (!r.orders.length) {
-    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No orders found</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted)">No orders found</td></tr>';
     return;
   }
-  tb.innerHTML = r.orders.map(o=>`
-    <tr>
+  const now = Date.now();
+  tb.innerHTML = r.orders.map(o=>{
+    const days = o.submitted_at ? Math.floor((now-new Date(o.submitted_at))/86400000) : '—';
+    const verified = o.verified_in_orders_csv
+      ? '<span style="color:var(--success);font-weight:700">✅ Yes</span>'
+      : '<span style="color:#e67e22;font-weight:700">⚠️ No</span>';
+    return `<tr>
       <td><code style="font-size:11px">${o.order_id}</code></td>
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${o.email}</td>
       <td><span class="badge badge-${o.status}">${o.status}</span></td>
-      <td>${o.csv_last_status||'—'}</td>
-      <td style="text-align:center">${o.consecutive_delivered_count||0}</td>
-      <td>${o.days_left_in_cooling!=null ? o.days_left_in_cooling+'d' : '—'}</td>
-      <td style="text-align:center">${o.ready_to_approve?'✅':'—'}</td>
+      <td>${verified}</td>
+      <td style="text-align:center">${days}d</td>
       <td style="font-size:11px">${o.submitted_at?new Date(o.submitted_at).toLocaleDateString('en-IN'):'—'}</td>
       <td style="display:flex;gap:5px">
         ${o.ready_to_approve?`<button class="btn btn-success" onclick="approveOrder('${o.order_id}')">✓</button>`:''}
         ${!['rejected','approved'].includes(o.status)?`<button class="btn btn-danger" onclick="rejectOrder('${o.order_id}')">✗</button>`:''}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function approveOrder(oid) {
   if (!confirm(`Approve ${oid}?`)) return;
-  const r = await api('/api/admin/update-order',{method:'POST',
+  const r = await api('/api/admin/update-order', {method:'POST',
     body:JSON.stringify({order_id:oid,status:'approved',admin_note:'Manual admin approval'})});
   if (r.success) { toast('✅ Approved!','ok'); loadDashboard(); loadOrders(); }
   else toast('Failed: '+r.error,'err');
@@ -375,62 +409,106 @@ async function approveOrder(oid) {
 async function rejectOrder(oid) {
   const reason = prompt('Rejection reason:');
   if (!reason) return;
-  const r = await api('/api/admin/update-order',{method:'POST',
+  const r = await api('/api/admin/update-order', {method:'POST',
     body:JSON.stringify({order_id:oid,status:'rejected',rejection_reason:reason})});
   if (r.success) { toast('Rejected','ok'); loadOrders(); }
   else toast('Failed: '+r.error,'err');
 }
 
 async function triggerApprovals() {
+  toast('Running approvals…');
   const r = await api('/api/admin/run-approvals');
-  if (r.success) { toast(`✅ ${r.approved_count} approved`,'ok'); loadDashboard(); }
-  else toast('Failed: '+r.error,'err');
+  if (r.success) {
+    toast(`✅ ${r.approved_count} approved, ${r.stale_rejected||0} fake IDs rejected`,'ok');
+    loadDashboard();
+  } else toast('Failed: '+r.error,'err');
 }
 
+// ── CSV 1: Orders CSV ─────────────────────────────────────────────────
+async function uploadOrdersCsv() {
+  const file = document.getElementById('orders-csv-file').files[0];
+  if (!file) return toast('Select the Orders CSV file first','err');
+  const fd = new FormData(); fd.append('csv_file', file);
+  document.getElementById('orders-csv-result').innerHTML =
+    '<p style="color:var(--muted);font-size:12px;margin-top:8px">⏳ Processing Orders CSV…</p>';
+  const r = await fetch('/api/admin/upload-orders-csv', {
+    method:'POST', headers:{'X-Admin-Secret':SECRET}, body:fd
+  }).then(x=>x.json()).catch(()=>({success:false,error:'Network error'}));
+  if (r.success) {
+    const s = r.stats;
+    document.getElementById('orders-csv-result').innerHTML = `
+      <div style="margin-top:8px;font-size:12px;background:#f0fff4;border-radius:8px;padding:12px;border-left:3px solid #2ecc71">
+        <strong>✅ Done!</strong><br>
+        📋 Real order IDs in CSV: <b>${s.total_ids_in_csv||0}</b><br>
+        ✅ Verified & moved to review: <b>${s.rows_verified||0}</b><br>
+        ❌ Rejected (verified but returned): <b>${s.rows_rejected||0}</b><br>
+        🗑️ Fake/stale IDs rejected: <b>${s.stale_rejected||0}</b><br>
+        ⭐ Auto-approved (15+ days clean): <b>${s.auto_approved||0}</b><br>
+        ⏭ Not in our DB (never submitted): <b>${s.rows_skipped||0}</b>
+      </div>`;
+    loadDashboard();
+  } else {
+    document.getElementById('orders-csv-result').innerHTML =
+      `<p style="color:var(--danger);font-size:12px;margin-top:8px">❌ ${r.error}</p>`;
+  }
+}
+
+// ── CSV 2: Returns CSV ────────────────────────────────────────────────
 async function uploadReturnsCsv() {
-  const file = document.getElementById('csv-file').files[0];
+  const file = document.getElementById('returns-csv-file').files[0];
   if (!file) return toast('Select the Returns CSV file first','err');
   const fd = new FormData(); fd.append('csv_file', file);
-  document.getElementById('csv-result').innerHTML = '<p style="color:var(--muted);font-size:12px;margin-top:8px">⏳ Processing returns CSV…</p>';
+  document.getElementById('returns-csv-result').innerHTML =
+    '<p style="color:var(--muted);font-size:12px;margin-top:8px">⏳ Processing Returns CSV…</p>';
   const r = await fetch('/api/admin/upload-returns-csv', {
     method:'POST', headers:{'X-Admin-Secret':SECRET}, body:fd
   }).then(x=>x.json()).catch(()=>({success:false,error:'Network error'}));
   if (r.success) {
     const s = r.stats;
-    document.getElementById('csv-result').innerHTML = `
-      <div style="margin-top:10px;font-size:12px;background:#f0fff4;border-radius:8px;padding:12px;border-left:3px solid #2ecc71">
-        <strong>✅ Done!</strong><br>
+    document.getElementById('returns-csv-result').innerHTML = `
+      <div style="margin-top:8px;font-size:12px;background:#fff5f5;border-radius:8px;padding:12px;border-left:3px solid #e74c3c">
+        <strong>🚫 Done!</strong><br>
         📋 Returned IDs in CSV: <b>${s.returned_ids_in_csv||0}</b><br>
         🔍 Matched in our DB: <b>${s.rows_matched||0}</b><br>
-        🚫 Rejected: <b>${s.rows_rejected||0}</b><br>
+        ❌ Rejected: <b>${s.rows_rejected||0}</b><br>
         ⚠️ Disputed (late return): <b>${s.rows_disputed||0}</b><br>
-        ✅ Auto-approved (clean orders): <b>${s.auto_approved||0}</b><br>
+        ⭐ Auto-approved (clean orders): <b>${s.auto_approved||0}</b><br>
         ⏭ Skipped (not in our DB): <b>${s.rows_skipped||0}</b>
       </div>`;
     loadDashboard();
   } else {
-    document.getElementById('csv-result').innerHTML =
+    document.getElementById('returns-csv-result').innerHTML =
       `<p style="color:var(--danger);font-size:12px;margin-top:8px">❌ ${r.error}</p>`;
   }
 }
 
-async function loadBlocklist() {
-  document.getElementById('blocklist-result').innerHTML = '<p style="color:var(--muted);font-size:12px">Loading…</p>';
+// ── Blocklist/Whitelist viewers ───────────────────────────────────────
+function renderList(items, idKey, color, emptyMsg) {
+  if (!items.length) return `<span style="color:#666;font-size:12px">${emptyMsg}</span>`;
+  return `<div style="max-height:180px;overflow-y:auto;font-size:11px;font-family:monospace;background:#1a1a1a;border-radius:6px;padding:10px">
+    ${items.map(b=>`<div style="padding:2px 0;border-bottom:1px solid #2a2a2a">
+      <span style="color:${color}">${b[idKey]}</span>
+      <span style="color:#555;margin-left:8px">${new Date(b.added_at).toLocaleDateString('en-IN')}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
+async function loadReturnBlocklist() {
+  document.getElementById('return-blocklist-result').innerHTML = '<p style="color:var(--muted);font-size:12px">Loading…</p>';
   const r = await api('/api/admin/returns-blocklist?limit=100', {method:'GET'});
-  if (!r.success) {
-    document.getElementById('blocklist-result').innerHTML = '<p style="color:var(--danger);font-size:12px">Failed to load</p>';
-    return;
-  }
-  const list = r.blocklist || [];
-  document.getElementById('blocklist-result').innerHTML = `
-    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Total blocked IDs: <b>${r.total}</b></p>
-    <div style="max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;background:#1a1a1a;border-radius:6px;padding:10px">
-      ${list.length ? list.map(b=>`<div style="padding:2px 0;border-bottom:1px solid #2a2a2a">
-        <span style="color:#e74c3c">${b.suborder_id}</span>
-        <span style="color:#666;margin-left:8px">${b.source_filename||''}</span>
-        <span style="color:#444;margin-left:8px">${new Date(b.added_at).toLocaleDateString('en-IN')}</span>
-      </div>`).join('') : '<span style="color:#666">No blocked IDs yet</span>'}
-    </div>`;
+  if (!r.success) { document.getElementById('return-blocklist-result').innerHTML='<p style="color:var(--danger);font-size:12px">Failed</p>'; return; }
+  document.getElementById('return-blocklist-result').innerHTML =
+    `<p style="font-size:12px;color:var(--muted);margin-bottom:6px">Total: <b>${r.total}</b></p>` +
+    renderList(r.blocklist,'suborder_id','#e74c3c','No blocked IDs yet');
+}
+
+async function loadOrdersWhitelist() {
+  document.getElementById('orders-whitelist-result').innerHTML = '<p style="color:var(--muted);font-size:12px">Loading…</p>';
+  const r = await api('/api/admin/orders-whitelist?limit=100', {method:'GET'});
+  if (!r.success) { document.getElementById('orders-whitelist-result').innerHTML='<p style="color:var(--danger);font-size:12px">Failed</p>'; return; }
+  document.getElementById('orders-whitelist-result').innerHTML =
+    `<p style="font-size:12px;color:var(--muted);margin-bottom:6px">Total: <b>${r.total}</b></p>` +
+    renderList(r.whitelist,'suborder_id','#2ecc71','No verified IDs yet — upload Orders CSV');
 }
 
 async function loadSync() {
@@ -443,10 +521,12 @@ async function loadSync() {
         <strong>${l.filename}</strong>
         <span class="log-meta">${new Date(l.synced_at).toLocaleString('en-IN')}</span>
       </div>
-      <div class="log-meta">
-        Matched: ${l.rows_matched} &nbsp;|&nbsp; Delivered: ${l.rows_delivered} &nbsp;|&nbsp;
-        Returned: ${l.rows_returned} &nbsp;|&nbsp; Approved: ${l.rows_approved}
-        ${l.rows_disputed?`&nbsp;|&nbsp; Disputed: ${l.rows_disputed}`:''}
+      <div class="log-meta" style="margin-top:4px">
+        Synced by: ${l.synced_by} &nbsp;|&nbsp;
+        Matched: ${l.rows_matched||0} &nbsp;|&nbsp;
+        Approved: ${l.rows_approved||0} &nbsp;|&nbsp;
+        Returned: ${l.rows_returned||0}
+        ${l.rows_disputed?` &nbsp;|&nbsp; Disputed: ${l.rows_disputed}`:''} 
       </div>
       ${l.error_message?`<div style="color:var(--danger);font-size:11px;margin-top:3px">${l.error_message}</div>`:''}
     </div>`).join('') || '<p style="color:var(--muted);font-size:13px">No uploads yet</p>';
@@ -470,7 +550,7 @@ async function loadConfig() {
 async function saveConfig(key) {
   const val = document.getElementById('i-'+key).value.trim();
   const r = await api('/api/admin/config',{method:'POST',body:JSON.stringify({key,value:val})});
-  if (r.success) { document.getElementById('v-'+key).textContent=val; toast('Saved','ok'); }
+  if (r.success) { document.getElementById('v-'+key).textContent=val; toast('Saved ✓','ok'); }
   else toast('Failed: '+r.error,'err');
 }
 </script>

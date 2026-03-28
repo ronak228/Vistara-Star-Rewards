@@ -193,20 +193,50 @@ def check_rate(conn, identifier, id_type) -> bool:
 
 # ── CSV PARSERS ───────────────────────────────────────────────────────
 def _find_header_and_parse(filepath: str, target_col: str):
-    """Skip Meesho metadata rows, find real header, return (rows, fieldnames)."""
+    """Skip Meesho metadata rows, find real header, return (rows, fieldnames).
+    Handles column name variations (e.g., 'Sub Order No' vs 'Suborder Number')"""
     with open(filepath, newline="", encoding="utf-8-sig") as f:
         lines = f.readlines()
+    
     header_idx = None
+    reader_obj = None
+    
+    # Try exact match first
     for i, line in enumerate(lines):
         if target_col in line:
             header_idx = i
             break
+    
+    # If exact match not found, try fuzzy matching for common variations
     if header_idx is None:
+        target_norm = target_col.lower().replace(" ", "").replace("_", "")
+        for i, line in enumerate(lines):
+            line_norm = line.lower().replace(" ", "").replace("_", "")
+            if target_norm in line_norm:
+                header_idx = i
+                break
+    
+    if header_idx is None:
+        log.warning("Header '%s' not found in CSV", target_col)
         return [], []
+    
     content = "".join(lines[header_idx:])
-    reader = csv.DictReader(io.StringIO(content))
-    rows = list(reader)
-    return rows, (reader.fieldnames or [])
+    reader_obj = csv.DictReader(io.StringIO(content))
+    rows = list(reader_obj)
+    
+    # Find the actual column name in the CSV
+    actual_col_name = None
+    if reader_obj.fieldnames:
+        target_norm = target_col.lower().replace(" ", "").replace("_", "")
+        for fname in reader_obj.fieldnames:
+            fname_norm = fname.lower().replace(" ", "").replace("_", "")
+            if target_norm in fname_norm or fname_norm in target_norm:
+                actual_col_name = fname
+                break
+        if not actual_col_name:
+            actual_col_name = reader_obj.fieldnames[0] if reader_obj.fieldnames else None
+    
+    return rows, reader_obj.fieldnames, actual_col_name
 
 
 def parse_orders_csv(filepath: str) -> set:
@@ -216,15 +246,15 @@ def parse_orders_csv(filepath: str) -> set:
     """
     valid_ids = set()
     try:
-        rows, fieldnames = _find_header_and_parse(filepath, ORDERS_CSV_SUBORDER_COL)
-        if ORDERS_CSV_SUBORDER_COL not in fieldnames:
+        rows, fieldnames, actual_col = _find_header_and_parse(filepath, ORDERS_CSV_SUBORDER_COL)
+        if not actual_col:
             log.error("Orders CSV missing '%s'. Got: %s", ORDERS_CSV_SUBORDER_COL, fieldnames)
             return valid_ids
         for row in rows:
-            sid = str(row.get(ORDERS_CSV_SUBORDER_COL, "")).strip()
+            sid = str(row.get(actual_col, "")).strip()
             if sid:
                 valid_ids.add(sid)
-        log.info("Orders CSV parsed: %d valid order IDs found", len(valid_ids))
+        log.info("Orders CSV parsed: %d valid order IDs found (column: %s)", len(valid_ids), actual_col)
     except Exception as e:
         log.error("parse_orders_csv error: %s", e)
     return valid_ids
@@ -1090,6 +1120,68 @@ def get_stars():
         log.error("get_stars: %s", e)
         return jsonify({"success": False, "error": "Server error"}), 500
     finally: conn.close()
+
+
+# ── ADMIN: EXPORT ORDERS ──────────────────────────────────────────────
+@app.route("/api/admin/export-orders", methods=["GET"])
+@require_admin
+def export_orders():
+    """
+    Export all orders to CSV for download.
+    Filter by status if provided via query param.
+    """
+    try:
+        conn = get_db()
+        if not conn:
+            return jsonify({"success": False, "error": "Database unavailable"}), 500
+        
+        status_filter = request.args.get("status", "").strip()
+        with conn.cursor() as c:
+            if status_filter:
+                c.execute("""SELECT order_id,email,status,verified_in_orders_csv,submitted_at,
+                    approved_at,rejected_at,rejection_reason,admin_note,created_at
+                    FROM orders WHERE status=%s::order_status ORDER BY submitted_at DESC""", 
+                    (status_filter,))
+            else:
+                c.execute("""SELECT order_id,email,status,verified_in_orders_csv,submitted_at,
+                    approved_at,rejected_at,rejection_reason,admin_note,created_at
+                    FROM orders ORDER BY submitted_at DESC""")
+            rows = c.fetchall()
+        
+        if not rows:
+            return jsonify({"success": False, "error": "No orders found"}), 404
+        
+        # Generate CSV
+        output = io.StringIO()
+        fieldnames = ["Order ID", "Email", "Status", "Verified?", "Submitted", 
+                      "Approved", "Rejected", "Rejection Reason", "Admin Note"]
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for row in rows:
+            writer.writerow({
+                "Order ID": row["order_id"],
+                "Email": row["email"],
+                "Status": row["status"],
+                "Verified?": "Yes" if row["verified_in_orders_csv"] else "No",
+                "Submitted": row["submitted_at"].isoformat() if row.get("submitted_at") else "",
+                "Approved": row["approved_at"].isoformat() if row.get("approved_at") else "",
+                "Rejected": row["rejected_at"].isoformat() if row.get("rejected_at") else "",
+                "Rejection Reason": row.get("rejection_reason", "") or "",
+                "Admin Note": row.get("admin_note", "") or "",
+            })
+        
+        csv_content = output.getvalue()
+        output.close()
+        conn.close()
+        
+        return csv_content, 200, {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": f"attachment; filename=orders_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        }
+    except Exception as e:
+        log.error("export_orders error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ── WAKE / HEALTH ──────────────────────────────────────────────────────

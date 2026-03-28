@@ -387,29 +387,50 @@ async function triggerApprovals() {
   else toast('Failed: '+r.error,'err');
 }
 
-async function uploadCsv() {
+async function uploadReturnsCsv() {
   const file = document.getElementById('csv-file').files[0];
-  if (!file) return toast('Select a CSV file first','err');
+  if (!file) return toast('Select the Returns CSV file first','err');
   const fd = new FormData(); fd.append('csv_file', file);
-  document.getElementById('csv-result').innerHTML = '<p style="color:var(--muted);font-size:12px;margin-top:8px">Processing…</p>';
-  const r = await fetch('/api/admin/upload-csv',{
-    method:'POST', headers:{'X-Admin-Secret':SECRET}, body:fd}).then(x=>x.json());
+  document.getElementById('csv-result').innerHTML = '<p style="color:var(--muted);font-size:12px;margin-top:8px">⏳ Processing returns CSV…</p>';
+  const r = await fetch('/api/admin/upload-returns-csv', {
+    method:'POST', headers:{'X-Admin-Secret':SECRET}, body:fd
+  }).then(x=>x.json()).catch(()=>({success:false,error:'Network error'}));
   if (r.success) {
     const s = r.stats;
     document.getElementById('csv-result').innerHTML = `
-      <div style="margin-top:10px;padding:10px;background:#D1FAE5;border-radius:7px;font-size:12px">
-        ✅ Processed ${s.rows_processed} rows &nbsp;|&nbsp;
-        Matched: ${s.rows_matched} &nbsp;|&nbsp;
-        Delivered: ${s.rows_delivered} &nbsp;|&nbsp;
-        Returned: ${s.rows_returned} &nbsp;|&nbsp;
-        Approved: ${s.rows_approved}
-        ${s.rows_disputed?`&nbsp;|&nbsp; ⚠️ Disputed: ${s.rows_disputed}`:''}
+      <div style="margin-top:10px;font-size:12px;background:#f0fff4;border-radius:8px;padding:12px;border-left:3px solid #2ecc71">
+        <strong>✅ Done!</strong><br>
+        📋 Returned IDs in CSV: <b>${s.returned_ids_in_csv||0}</b><br>
+        🔍 Matched in our DB: <b>${s.rows_matched||0}</b><br>
+        🚫 Rejected: <b>${s.rows_rejected||0}</b><br>
+        ⚠️ Disputed (late return): <b>${s.rows_disputed||0}</b><br>
+        ✅ Auto-approved (clean orders): <b>${s.auto_approved||0}</b><br>
+        ⏭ Skipped (not in our DB): <b>${s.rows_skipped||0}</b>
       </div>`;
     loadDashboard();
   } else {
     document.getElementById('csv-result').innerHTML =
-      `<p style="color:var(--danger);margin-top:8px;font-size:12px">❌ ${r.error}</p>`;
+      `<p style="color:var(--danger);font-size:12px;margin-top:8px">❌ ${r.error}</p>`;
   }
+}
+
+async function loadBlocklist() {
+  document.getElementById('blocklist-result').innerHTML = '<p style="color:var(--muted);font-size:12px">Loading…</p>';
+  const r = await api('/api/admin/returns-blocklist?limit=100', {method:'GET'});
+  if (!r.success) {
+    document.getElementById('blocklist-result').innerHTML = '<p style="color:var(--danger);font-size:12px">Failed to load</p>';
+    return;
+  }
+  const list = r.blocklist || [];
+  document.getElementById('blocklist-result').innerHTML = `
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Total blocked IDs: <b>${r.total}</b></p>
+    <div style="max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;background:#1a1a1a;border-radius:6px;padding:10px">
+      ${list.length ? list.map(b=>`<div style="padding:2px 0;border-bottom:1px solid #2a2a2a">
+        <span style="color:#e74c3c">${b.suborder_id}</span>
+        <span style="color:#666;margin-left:8px">${b.source_filename||''}</span>
+        <span style="color:#444;margin-left:8px">${new Date(b.added_at).toLocaleDateString('en-IN')}</span>
+      </div>`).join('') : '<span style="color:#666">No blocked IDs yet</span>'}
+    </div>`;
 }
 
 async function loadSync() {

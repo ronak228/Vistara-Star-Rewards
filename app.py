@@ -58,11 +58,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_BYTES
 
 # ── CSV COLUMN NAMES ──────────────────────────────────────────────────
-# Orders CSV (all Meesho orders — to verify real IDs)
-# Meesho Orders CSV uses "Sub Order No"; Returns CSV uses "Suborder Number"
 ORDERS_CSV_SUBORDER_COL = os.getenv("ORDERS_CSV_SUBORDER_COL", "Sub Order No")
-
-# Returns CSV (returned/RTO orders only)
 RETURN_CSV_SUBORDER_COL = os.getenv("RETURN_CSV_SUBORDER_COL", "Suborder Number")
 RETURN_CSV_TYPE_COL     = os.getenv("RETURN_CSV_TYPE_COL",     "Type of Return")
 
@@ -147,7 +143,7 @@ def release_db(conn):
         except Exception as e:
             log.warning("Pool putconn failed: %s", e)
     try:
-        release_db(conn)
+        conn.close()
     except Exception:
         pass
 
@@ -210,21 +206,16 @@ def check_rate(conn, identifier, id_type) -> bool:
 
 # ── CSV PARSERS ───────────────────────────────────────────────────────
 def _find_header_and_parse(filepath: str, target_col: str):
-    """Skip Meesho metadata rows, find real header, return (rows, fieldnames).
-    Handles column name variations (e.g., 'Sub Order No' vs 'Suborder Number')"""
     with open(filepath, newline="", encoding="utf-8-sig") as f:
         lines = f.readlines()
-    
+
     header_idx = None
-    reader_obj = None
-    
-    # Try exact match first
+
     for i, line in enumerate(lines):
         if target_col in line:
             header_idx = i
             break
-    
-    # If exact match not found, try fuzzy matching for common variations
+
     if header_idx is None:
         target_norm = target_col.lower().replace(" ", "").replace("_", "")
         for i, line in enumerate(lines):
@@ -232,16 +223,15 @@ def _find_header_and_parse(filepath: str, target_col: str):
             if target_norm in line_norm:
                 header_idx = i
                 break
-    
+
     if header_idx is None:
         log.warning("Header '%s' not found in CSV", target_col)
         return [], []
-    
+
     content = "".join(lines[header_idx:])
     reader_obj = csv.DictReader(io.StringIO(content))
     rows = list(reader_obj)
-    
-    # Find the actual column name in the CSV
+
     actual_col_name = None
     if reader_obj.fieldnames:
         target_norm = target_col.lower().replace(" ", "").replace("_", "")
@@ -252,15 +242,11 @@ def _find_header_and_parse(filepath: str, target_col: str):
                 break
         if not actual_col_name:
             actual_col_name = reader_obj.fieldnames[0] if reader_obj.fieldnames else None
-    
+
     return rows, reader_obj.fieldnames, actual_col_name
 
 
 def parse_orders_csv(filepath: str) -> set:
-    """
-    Parse Meesho Orders CSV (all orders download).
-    Returns set of valid Suborder Numbers — these are REAL Meesho order IDs.
-    """
     valid_ids = set()
     try:
         rows, fieldnames, actual_col = _find_header_and_parse(filepath, ORDERS_CSV_SUBORDER_COL)
@@ -278,10 +264,6 @@ def parse_orders_csv(filepath: str) -> set:
 
 
 def parse_return_csv(filepath: str) -> set:
-    """
-    Parse Meesho Returns CSV (returns/RTO download).
-    Returns set of Suborder Numbers that are returned.
-    """
     returned_ids = set()
     try:
         rows, fieldnames, actual_col = _find_header_and_parse(filepath, RETURN_CSV_SUBORDER_COL)
@@ -289,7 +271,6 @@ def parse_return_csv(filepath: str) -> set:
             log.error("Returns CSV missing '%s'. Got: %s", RETURN_CSV_SUBORDER_COL, fieldnames)
             return returned_ids
 
-        # Find actual type column name in CSV (fuzzy match)
         actual_type_col = None
         if fieldnames:
             type_norm = RETURN_CSV_TYPE_COL.lower().replace(" ", "").replace("_", "")
@@ -302,7 +283,6 @@ def parse_return_csv(filepath: str) -> set:
         for row in rows:
             sid = str(row.get(actual_col, "")).strip()
             ret_type = str(row.get(actual_type_col or RETURN_CSV_TYPE_COL, "")).strip().lower()
-            # Only include rows that are explicitly a return/RTO type
             if sid and (ret_type in RETURN_TYPE_VALUES):
                 returned_ids.add(sid)
         log.info("Returns CSV parsed: %d returned IDs found", len(returned_ids))
@@ -313,13 +293,6 @@ def parse_return_csv(filepath: str) -> set:
 
 # ── AUTO APPROVE ──────────────────────────────────────────────────────
 def auto_approve_eligible(conn, sync_id: int) -> dict:
-    """
-    Auto-approve orders that meet ALL conditions:
-    1. status = 'under_review' (was verified in Orders CSV)
-    2. ever_showed_return = FALSE (never in Returns CSV)
-    3. verified_in_orders_csv = TRUE (confirmed real Meesho order)
-    4. 15+ days passed since submission
-    """
     cfg   = get_config(conn)
     cool  = int(cfg.get("cooling_days", "15"))
     auto  = cfg.get("auto_approve_enabled", "true").lower() == "true"
@@ -345,7 +318,7 @@ def auto_approve_eligible(conn, sync_id: int) -> dict:
                 WHERE order_id=%s AND status='under_review' RETURNING order_id""", (o["order_id"],))
             if c.fetchone():
                 audit(c, o["order_id"], "under_review", "approved",
-                      f"auto_approve:day={( now - ref).days}>=cool={cool}", sync_id)
+                      f"auto_approve:day={(now - ref).days}>=cool={cool}", sync_id)
                 stats["approved"] += 1
                 log.info("APPROVED order_id=%s days=%d", o["order_id"], (now-ref).days)
         conn.commit()
@@ -354,10 +327,6 @@ def auto_approve_eligible(conn, sync_id: int) -> dict:
 
 
 def reject_unverified_stale(conn, sync_id: int) -> dict:
-    """
-    Reject orders that were NEVER verified in any Orders CSV after 20 days.
-    These are likely fake/random IDs — real orders always appear in Meesho CSV within days.
-    """
     cfg   = get_config(conn)
     stale = int(cfg.get("stale_order_days", "20"))
     stats = dict(rejected=0)
@@ -403,10 +372,26 @@ def submit():
     ip = client_ip()
     uh = ua_hash()
 
-    name     = (request.form.get("name",     "") or "").strip()
-    email    = (request.form.get("email",    "") or "").strip().lower()
-    order_id     = (request.form.get("order_id",      "") or "").strip()
-    mobile_number = (request.form.get("mobile_number", "") or "").strip() or None
+    name          = (request.form.get("name",         "") or "").strip()
+    email         = (request.form.get("email",        "") or "").strip().lower()
+    order_id      = (request.form.get("order_id",     "") or "").strip()
+    mobile_number = (request.form.get("mobile_number","") or "").strip() or None
+
+    # ── Optional file uploads ──────────────────────────────────────────
+    screenshot_path   = None
+    ss_file = request.files.get("screenshot")
+    if ss_file and ss_file.filename:
+        if not ok_ext(ss_file.filename):
+            return jsonify({"success": False, "error": "Screenshot must be JPG, PNG, GIF or WEBP."}), 400
+        screenshot_path = save_file(ss_file, f"ss_{order_id}_{secure_filename(ss_file.filename)}")
+
+    rating_image_path = None
+    ri_file = request.files.get("rating_image")
+    if ri_file and ri_file.filename:
+        if not ok_ext(ri_file.filename):
+            return jsonify({"success": False, "error": "Rating image must be JPG, PNG, GIF or WEBP."}), 400
+        rating_image_path = save_file(ri_file, f"rating_{order_id}_{secure_filename(ri_file.filename)}")
+    # ──────────────────────────────────────────────────────────────────
 
     if not name or not email or not order_id:
         return jsonify({"success": False, "error": "All fields are required."}), 400
@@ -416,7 +401,6 @@ def submit():
         return jsonify({"success": False, "error": "Name contains invalid characters."}), 400
     if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', email) or len(email) > 254:
         return jsonify({"success": False, "error": "Invalid email address."}), 400
-    # Mobile validation (optional — only validate if provided)
     if mobile_number:
         if not re.match(r'^[6-9][0-9]{9}$', mobile_number):
             return jsonify({"success": False, "error": "Invalid mobile number. Please enter a valid 10-digit Indian mobile number."}), 400
@@ -431,17 +415,14 @@ def submit():
 
     try:
         with conn.cursor() as c:
-            # Blocked IP?
             c.execute("SELECT 1 FROM blocked_entities WHERE entity_type='ip' AND value=%s LIMIT 1", (ip,))
             if c.fetchone():
                 return jsonify({"success": False, "error": "Access denied."}), 403
 
-            # Blocked email?
             c.execute("SELECT 1 FROM blocked_entities WHERE entity_type='email' AND lower(value)=lower(%s) LIMIT 1", (email,))
             if c.fetchone():
                 return jsonify({"success": False, "error": "This email has been restricted. Contact support."}), 403
 
-            # Rate limits
             if not check_rate(conn, ip, "ip"):
                 _log_attempt(conn, ip, email, order_id, blocked=True)
                 return jsonify({"success": False, "error": "Too many submissions from your device. Wait an hour."}), 429
@@ -449,27 +430,23 @@ def submit():
                 _log_attempt(conn, ip, email, order_id, blocked=True)
                 return jsonify({"success": False, "error": "Too many submissions from this email. Wait an hour."}), 429
 
-            # Daily cap
             c.execute("""SELECT COUNT(*) as cnt FROM orders WHERE lower(email)=lower(%s)
                 AND submitted_at > NOW() - INTERVAL '24 hours'""", (email,))
             if (c.fetchone() or {}).get("cnt", 0) >= 3:
                 return jsonify({"success": False, "error": "Maximum 3 orders per day from one email."}), 429
 
-            # ── CHECK 1: Already in Returns blocklist? → Reject instantly ──
             c.execute("SELECT 1 FROM returns_blocklist WHERE suborder_id=%s LIMIT 1", (order_id,))
             if c.fetchone():
                 _log_attempt(conn, ip, email, order_id, blocked=True)
                 return jsonify({"success": False,
                     "error": "This order was returned/cancelled and is not eligible for stars."}), 409
 
-            # ── CHECK 2: Duplicate order ID? ──
             c.execute("SELECT status FROM orders WHERE lower(order_id)=lower(%s) LIMIT 1", (order_id,))
             if c.fetchone():
                 _log_attempt(conn, ip, email, order_id, was_duplicate=True)
                 return jsonify({"success": False,
                     "error": "This Order ID has already been submitted. Each order earns stars only once."}), 409
 
-            # Fraud scoring
             c.execute("""SELECT COUNT(DISTINCT lower(email)) as cnt FROM orders
                 WHERE ip_address=%s AND submitted_at > NOW() - INTERVAL '24 hours'""", (ip,))
             ip_email_count = (c.fetchone() or {}).get("cnt", 0)
@@ -513,11 +490,13 @@ def submit():
                         mobile_number,
                         ip_address,user_agent_hash,submitted_at,
                         fraud_score,fraud_reasons,submission_count_snapshot,
-                        verified_in_orders_csv)
-                      VALUES(%s,%s,%s,%s,'pending',%s,%s,%s,NOW(),%s,%s,%s,FALSE)""",
+                        verified_in_orders_csv,
+                        screenshot_path, rating_image_path)
+                      VALUES(%s,%s,%s,%s,'pending',%s,%s,%s,NOW(),%s,%s,%s,FALSE,%s,%s)""",
                         (order_id, email, name, t, mobile_number,
                          ip, uh, fraud_score,
-                         ",".join(fraud_reasons) or None, week_count))
+                         ",".join(fraud_reasons) or None, week_count,
+                         screenshot_path, rating_image_path))
                 token = t; break
             except Exception as e:
                 if "unique" in str(e).lower(): conn.rollback(); continue
@@ -560,15 +539,6 @@ def _log_attempt(conn, ip, email, order_id,
 @app.route("/api/admin/upload-orders-csv", methods=["POST"])
 @require_admin
 def upload_orders_csv():
-    """
-    CSV 1 — All Meesho Orders CSV.
-    Purpose: Verify submitted Order IDs are REAL Meesho orders (not random/fake).
-    Logic:
-      - Extract all Suborder Numbers from CSV → store in orders_whitelist
-      - Mark matching pending orders as verified + move to under_review
-      - Reject orders that are REAL but found in returns_blocklist (extra safety)
-      - Run auto-approve for verified orders past 15 days cooling
-    """
     if "csv_file" not in request.files:
         return jsonify({"success": False, "error": "csv_file required"}), 400
     f = request.files["csv_file"]
@@ -589,13 +559,11 @@ def upload_orders_csv():
             sid = c.fetchone()["id"]
         conn.commit()
 
-        # Step 1: Parse — get all valid suborder IDs from this CSV
         valid_ids = parse_orders_csv(tmp_path)
         if not valid_ids:
             return jsonify({"success": False,
                 "error": f"No order IDs found. Expected column '{ORDERS_CSV_SUBORDER_COL}' (or similar). Upload the Meesho 'All Orders' CSV, not the Returns CSV."}), 400
 
-        # Step 2: Store ALL valid IDs in orders_whitelist
         with conn.cursor() as c:
             for vid in valid_ids:
                 c.execute("""INSERT INTO orders_whitelist(suborder_id, source_filename, added_at)
@@ -606,14 +574,11 @@ def upload_orders_csv():
         conn.commit()
         log.info("Stored %d IDs in orders_whitelist", len(valid_ids))
 
-        # Step 3: Process each submitted order against this CSV
-        # Rule: if the order ID is in DB but NOT in this CSV → reject immediately.
-        # Real Meesho orders always appear in the Orders CSV. If it's missing, it's fake/random.
         stats = dict(
             total_ids_in_csv=len(valid_ids),
-            rows_verified=0,      # pending → under_review (real order confirmed)
-            rows_rejected=0,      # NOT in CSV (fake/random ID) OR in returns = reject
-            rows_skipped=0,       # ID not in our submissions DB at all (nobody submitted it)
+            rows_verified=0,
+            rows_rejected=0,
+            rows_skipped=0,
             auto_approved=0,
             auto_approve_checked=0,
         )
@@ -627,8 +592,6 @@ def upload_orders_csv():
         for order in unverified:
             oid = order["order_id"]
             if oid not in valid_ids:
-                # Order ID is in DB (user submitted it) but NOT in Meesho CSV
-                # → fake or random ID — reject immediately, no waiting
                 with conn.cursor() as c:
                     c.execute("""UPDATE orders SET status='rejected', rejected_at=NOW(),
                         rejection_reason='Order ID not found in Meesho Orders CSV — invalid or does not belong to this store',
@@ -643,14 +606,11 @@ def upload_orders_csv():
                 conn.commit()
                 continue
 
-            # This order IS in the Orders CSV → it's a real Meesho order
-            # But also check: is it in returns_blocklist? (extra safety)
             with conn.cursor() as c:
                 c.execute("SELECT 1 FROM returns_blocklist WHERE suborder_id=%s", (oid,))
                 in_returns = c.fetchone()
 
             if in_returns:
-                # Real order but already returned — reject
                 with conn.cursor() as c:
                     c.execute("""UPDATE orders SET status='rejected', rejected_at=NOW(),
                         ever_showed_return=TRUE,
@@ -665,7 +625,6 @@ def upload_orders_csv():
                 conn.commit()
                 continue
 
-            # Real order, not returned → verify and move to under_review
             with conn.cursor() as c:
                 c.execute("""UPDATE orders SET
                     verified_in_orders_csv=TRUE,
@@ -683,16 +642,13 @@ def upload_orders_csv():
                     stats["rows_verified"] += 1
             conn.commit()
 
-        # Step 4: Also reject fake stale orders (unverified after 20 days)
         stale_stats = reject_unverified_stale(conn, sid)
         stats["stale_rejected"] = stale_stats["rejected"]
 
-        # Step 5: Auto-approve eligible orders (verified + 15 days + not returned)
         approve_stats = auto_approve_eligible(conn, sid)
         stats["auto_approved"]        = approve_stats["approved"]
         stats["auto_approve_checked"] = approve_stats["checked"]
 
-        # Update sync log
         with conn.cursor() as c:
             c.execute("""UPDATE csv_sync_log SET
                 rows_processed=%s, rows_matched=%s, rows_approved=%s, rows_skipped=%s
@@ -726,15 +682,6 @@ def upload_orders_csv():
 @app.route("/api/admin/upload-returns-csv", methods=["POST"])
 @require_admin
 def upload_returns_csv():
-    """
-    CSV 2 — Meesho Returns CSV (RTO + Customer Returns only).
-    Purpose: Instantly reject any submitted orders that were returned.
-    Logic:
-      - Extract all returned Suborder Numbers
-      - Store in returns_blocklist permanently
-      - Reject/dispute any matching orders in DB
-      - Run auto-approve for clean verified orders past 15 days
-    """
     if "csv_file" not in request.files:
         return jsonify({"success": False, "error": "csv_file required"}), 400
     f = request.files["csv_file"]
@@ -760,7 +707,6 @@ def upload_returns_csv():
             return jsonify({"success": False,
                 "error": f"No returned/RTO order IDs found. Expected column '{RETURN_CSV_SUBORDER_COL}' with return types like 'Customer Return' or 'Courier Return (RTO)'. Upload the Meesho 'Completed & Delivered' Returns CSV."}), 400
 
-        # Store ALL returned IDs in returns_blocklist permanently
         with conn.cursor() as c:
             for rid in returned_ids:
                 c.execute("""INSERT INTO returns_blocklist(suborder_id,source_filename,added_at)
@@ -793,7 +739,6 @@ def upload_returns_csv():
             cur_status = order["status"]
 
             with conn.cursor() as c:
-                # Permanently mark ever_showed_return
                 c.execute("""UPDATE orders SET ever_showed_return=TRUE,
                     consecutive_delivered_count=0,
                     csv_last_status='returned_via_returns_csv',
@@ -801,7 +746,6 @@ def upload_returns_csv():
                   WHERE order_id=%s""", (rid,))
 
                 if cur_status == "approved":
-                    # Late return — already gave star
                     c.execute("""UPDATE orders SET status='disputed',
                         admin_note=COALESCE(admin_note||' | ','')||
                                   'LATE RETURN via Returns CSV '||NOW()::DATE::TEXT,
@@ -823,11 +767,9 @@ def upload_returns_csv():
 
             conn.commit()
 
-        # Also reject stale unverified orders
         stale_stats = reject_unverified_stale(conn, sid)
         stats["stale_rejected"] = stale_stats["rejected"]
 
-        # Auto-approve clean eligible orders
         approve_stats = auto_approve_eligible(conn, sid)
         stats["auto_approved"]        = approve_stats["approved"]
         stats["auto_approve_checked"] = approve_stats["checked"]
@@ -865,7 +807,7 @@ def upload_returns_csv():
         except Exception: pass
 
 
-# ── ADMIN: RUN APPROVALS (GitHub Actions daily 3AM IST) ───────────────
+# ── ADMIN: RUN APPROVALS ──────────────────────────────────────────────
 @app.route("/api/admin/run-approvals", methods=["POST"])
 @require_admin
 def run_approvals():
@@ -879,9 +821,7 @@ def run_approvals():
             sid = c.fetchone()["id"]
         conn.commit()
 
-        # Auto-approve eligible verified clean orders
         approve_stats = auto_approve_eligible(conn, sid)
-        # Reject fake stale orders
         stale_stats = reject_unverified_stale(conn, sid)
 
         return jsonify({
@@ -1151,55 +1091,57 @@ def get_stars():
 @app.route("/api/admin/export-orders", methods=["GET"])
 @require_admin
 def export_orders():
-    """
-    Export all orders to CSV for download.
-    Filter by status if provided via query param.
-    """
     try:
         conn = get_db()
         if not conn:
             return jsonify({"success": False, "error": "Database unavailable"}), 500
-        
+
         status_filter = request.args.get("status", "").strip()
         with conn.cursor() as c:
             if status_filter:
-                c.execute("""SELECT order_id,email,status,verified_in_orders_csv,submitted_at,
-                    approved_at,rejected_at,rejection_reason,admin_note,created_at
-                    FROM orders WHERE status=%s::order_status ORDER BY submitted_at DESC""", 
+                c.execute("""SELECT order_id,email,name,mobile_number,status,
+                    verified_in_orders_csv,submitted_at,approved_at,rejected_at,
+                    rejection_reason,admin_note,screenshot_path,rating_image_path,created_at
+                    FROM orders WHERE status=%s::order_status ORDER BY submitted_at DESC""",
                     (status_filter,))
             else:
-                c.execute("""SELECT order_id,email,status,verified_in_orders_csv,submitted_at,
-                    approved_at,rejected_at,rejection_reason,admin_note,created_at
+                c.execute("""SELECT order_id,email,name,mobile_number,status,
+                    verified_in_orders_csv,submitted_at,approved_at,rejected_at,
+                    rejection_reason,admin_note,screenshot_path,rating_image_path,created_at
                     FROM orders ORDER BY submitted_at DESC""")
             rows = c.fetchall()
-        
+
         if not rows:
             return jsonify({"success": False, "error": "No orders found"}), 404
-        
-        # Generate CSV
+
         output = io.StringIO()
-        fieldnames = ["Order ID", "Email", "Status", "Verified?", "Submitted", 
-                      "Approved", "Rejected", "Rejection Reason", "Admin Note"]
+        fieldnames = ["Order ID", "Email", "Name", "Mobile", "Status", "Verified?",
+                      "Submitted", "Approved", "Rejected", "Rejection Reason",
+                      "Admin Note", "Screenshot", "Rating Image"]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
-        
+
         for row in rows:
             writer.writerow({
-                "Order ID": row["order_id"],
-                "Email": row["email"],
-                "Status": row["status"],
-                "Verified?": "Yes" if row["verified_in_orders_csv"] else "No",
-                "Submitted": row["submitted_at"].isoformat() if row.get("submitted_at") else "",
-                "Approved": row["approved_at"].isoformat() if row.get("approved_at") else "",
-                "Rejected": row["rejected_at"].isoformat() if row.get("rejected_at") else "",
+                "Order ID":         row["order_id"],
+                "Email":            row["email"],
+                "Name":             row.get("name", "") or "",
+                "Mobile":           row.get("mobile_number", "") or "",
+                "Status":           row["status"],
+                "Verified?":        "Yes" if row["verified_in_orders_csv"] else "No",
+                "Submitted":        row["submitted_at"].isoformat() if row.get("submitted_at") else "",
+                "Approved":         row["approved_at"].isoformat() if row.get("approved_at") else "",
+                "Rejected":         row["rejected_at"].isoformat() if row.get("rejected_at") else "",
                 "Rejection Reason": row.get("rejection_reason", "") or "",
-                "Admin Note": row.get("admin_note", "") or "",
+                "Admin Note":       row.get("admin_note", "") or "",
+                "Screenshot":       row.get("screenshot_path", "") or "",
+                "Rating Image":     row.get("rating_image_path", "") or "",
             })
-        
+
         csv_content = output.getvalue()
         output.close()
         release_db(conn)
-        
+
         return csv_content, 200, {
             "Content-Type": "text/csv; charset=utf-8",
             "Content-Disposition": f"attachment; filename=orders_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"

@@ -260,6 +260,57 @@ function updateFileDisplay(inputElement) {
 
 // File uploads removed — no screenshots needed
 
+// ===== RATING IMAGE UPLOAD =====
+(function () {
+  const area  = document.getElementById('ratingUploadArea');
+  const input = document.getElementById('rating_image');
+  const text  = document.getElementById('ratingUploadText');
+  if (!area || !input || !text) return;
+
+  // Click to open file picker
+  area.addEventListener('click', () => {
+    if (_modalJustClosed) return;
+    input.click();
+  });
+
+  // File selected
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    if (!isValidImage(file)) {
+      text.innerHTML = '<div style="color:#c0392b;font-weight:600">❌ Invalid file — use JPG/PNG/WEBP under 5MB</div>';
+      input.value = '';
+      area.style.borderColor = '#c0392b';
+      area.style.background  = '#fff5f5';
+      return;
+    }
+    text.innerHTML = `
+      <div style="font-size:1.5rem">✅</div>
+      <div style="color:#27ae60;font-weight:600;font-size:13px">${file.name}</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">Tap to change</div>`;
+    area.style.borderColor = '#27ae60';
+    area.style.background  = '#f0fdf4';
+  });
+
+  // Drag & drop
+  ['dragenter', 'dragover'].forEach(e =>
+    area.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); area.style.background = '#fff3d0'; })
+  );
+  ['dragleave', 'drop'].forEach(e =>
+    area.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); })
+  );
+  area.addEventListener('drop', ev => {
+    const files = ev.dataTransfer.files;
+    if (files.length > 0) {
+      // Assign to input and fire change
+      const dt = new DataTransfer();
+      dt.items.add(files[0]);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change'));
+    }
+  });
+})();
+
 // ===== FORM SUBMISSION =====
 orderForm.addEventListener('submit', async (e) => {
   e.preventDefault();

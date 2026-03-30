@@ -93,14 +93,13 @@ let isSubmitting = false;
 
 const nameInput             = document.getElementById('name');
 const emailInput            = document.getElementById('email');
+const mobileInput           = document.getElementById('mobile_number');
 const orderIdInput          = document.getElementById('order_id');
-const orderScreenshotInput  = document.getElementById('order_screenshot');
-const ratingScreenshotInput = document.getElementById('rating_screenshot');
 
 const nameError             = document.getElementById('nameError');
 const emailError            = document.getElementById('emailError');
+const mobileError           = document.getElementById('mobileError');
 const orderIdError          = document.getElementById('orderIdError');
-const orderScreenshotError  = document.getElementById('orderScreenshotError');
 
 // ===== MEESHO ORDER ID VALIDATION =====
 // Format: 15-19 digits, underscore, 1-2 digits  e.g. 265437129718567616_1
@@ -117,6 +116,12 @@ function isValidEmail(email) {
 function isValidName(name) {
   return name.trim().length >= 2 &&
     /^[\u0900-\u097F\u0A00-\u0A7F\u0B00-\u0B7Fa-zA-Z\s.\-']+$/.test(name.trim());
+}
+
+
+function isValidMobile(mobile) {
+  if (!mobile) return true; // optional field
+  return /^[6-9][0-9]{9}$/.test(mobile.trim());
 }
 
 function isValidImage(file) {
@@ -137,7 +142,7 @@ function clearError(element) {
 }
 
 function clearErrors() {
-  [nameError, emailError, orderIdError, orderScreenshotError].forEach(clearError);
+  [nameError, emailError, orderIdError, mobileError].forEach(clearError);
 }
 
 // ===== FULL FORM VALIDATION =====
@@ -166,6 +171,12 @@ function validateForm() {
     if (isValid) emailInput.focus(); isValid = false;
   }
 
+  const mobileVal = mobileInput ? mobileInput.value.trim() : '';
+  if (mobileVal && !isValidMobile(mobileVal)) {
+    showError(mobileError, LangManager.get('errMobileInvalid'));
+    isValid = false;
+  }
+
   const orderIdVal = orderIdInput.value.trim();
   if (!orderIdVal) {
     showError(orderIdError, LangManager.get('errOrderIdRequired'));
@@ -175,13 +186,6 @@ function validateForm() {
     if (isValid) orderIdInput.focus(); isValid = false;
   }
 
-  if (!orderScreenshotInput.files.length) {
-    showError(orderScreenshotError, LangManager.get('errScreenshotRequired'));
-    isValid = false;
-  } else if (!isValidImage(orderScreenshotInput.files[0])) {
-    showError(orderScreenshotError, LangManager.get('errScreenshotInvalid'));
-    isValid = false;
-  }
 
   return isValid;
 }
@@ -254,10 +258,7 @@ function updateFileDisplay(inputElement) {
   if (fileName) uploadText.textContent = `✓ ${fileName}`;
 }
 
-setupFileUpload(orderScreenshotInput);
-setupFileUpload(ratingScreenshotInput);
-orderScreenshotInput.addEventListener('change', () => updateFileDisplay(orderScreenshotInput));
-ratingScreenshotInput.addEventListener('change', () => updateFileDisplay(ratingScreenshotInput));
+// File uploads removed — no screenshots needed
 
 // ===== FORM SUBMISSION =====
 orderForm.addEventListener('submit', async (e) => {
@@ -277,7 +278,7 @@ orderForm.addEventListener('submit', async (e) => {
       showSuccessModal(data.token, data.total_stars);
       orderForm.reset();
       clearErrors();
-      setTimeout(() => { updateFileDisplay(orderScreenshotInput); updateFileDisplay(ratingScreenshotInput); }, 100);
+
     } else {
       showErrorModal(data.error || 'Submission failed. Please try again.');
     }
@@ -365,7 +366,7 @@ emailInput.addEventListener('blur', () => {
   else clearError(emailError);
 });
 
-[nameInput, emailInput, orderIdInput].forEach(input => {
+[nameInput, emailInput, mobileInput, orderIdInput].forEach(input => {
   input.addEventListener('input', () => {
     const err = document.getElementById(input.id + 'Error');
     if (err) clearError(err);

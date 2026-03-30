@@ -403,13 +403,10 @@ def submit():
     ip = client_ip()
     uh = ua_hash()
 
-    content_len = request.content_length or 0
-    if content_len > MAX_FILE_BYTES:
-        return jsonify({"success": False, "error": "Request too large. Max 5MB allowed."}), 413
-
     name     = (request.form.get("name",     "") or "").strip()
     email    = (request.form.get("email",    "") or "").strip().lower()
-    order_id = (request.form.get("order_id", "") or "").strip()
+    order_id     = (request.form.get("order_id",      "") or "").strip()
+    mobile_number = (request.form.get("mobile_number", "") or "").strip() or None
 
     if not name or not email or not order_id:
         return jsonify({"success": False, "error": "All fields are required."}), 400
@@ -419,22 +416,14 @@ def submit():
         return jsonify({"success": False, "error": "Name contains invalid characters."}), 400
     if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', email) or len(email) > 254:
         return jsonify({"success": False, "error": "Invalid email address."}), 400
+    # Mobile validation (optional — only validate if provided)
+    if mobile_number:
+        if not re.match(r'^[6-9][0-9]{9}$', mobile_number):
+            return jsonify({"success": False, "error": "Invalid mobile number. Please enter a valid 10-digit Indian mobile number."}), 400
+
     if not MEESHO_ORDER_ID_REGEX.match(order_id):
         return jsonify({"success": False,
             "error": "Invalid Order ID format. Meesho Order IDs look like: 265437129718567616_1"}), 400
-
-    of = request.files.get("order_screenshot")
-    if not of or not of.filename:
-        return jsonify({"success": False, "error": "Order screenshot is required."}), 400
-    if not ok_ext(of.filename):
-        return jsonify({"success": False, "error": "Screenshot must be PNG, JPG, GIF or WEBP."}), 400
-    file_bytes = of.read()
-    if len(file_bytes) == 0 or len(file_bytes) > MAX_FILE_BYTES:
-        return jsonify({"success": False, "error": "Screenshot must be between 1 byte and 5MB."}), 400
-    MAGIC = {b'\xff\xd8\xff': "jpg", b'\x89PNG': "png", b'GIF8': "gif", b'RIFF': "webp"}
-    if not any(file_bytes[:len(sig)] == sig for sig in MAGIC):
-        return jsonify({"success": False, "error": "File does not appear to be a valid image."}), 400
-    of.seek(0)
 
     conn = get_db()
     if not conn:
@@ -508,17 +497,6 @@ def submit():
                 _log_attempt(conn, ip, email, order_id, blocked=True)
                 return jsonify({"success": False, "error": "Suspicious activity detected."}), 403
 
-        # Save files
-        pfx = random.randint(10000, 99999)
-        op  = save_file(of, f"{pfx}_{secure_filename(of.filename)}")
-        rp  = None
-        rf  = request.files.get("rating_screenshot")
-        if rf and rf.filename and ok_ext(rf.filename):
-            rb = rf.read()
-            if 0 < len(rb) <= MAX_FILE_BYTES:
-                rf.seek(0)
-                rp = save_file(rf, f"{pfx}r_{secure_filename(rf.filename)}")
-
         with conn.cursor() as c:
             c.execute("""INSERT INTO users(email) VALUES(%s)
                 ON CONFLICT(email) DO UPDATE SET updated_at=NOW()
@@ -532,13 +510,14 @@ def submit():
                 with conn.cursor() as c:
                     c.execute("""INSERT INTO orders(
                         order_id,email,name,token,status,
-                        screenshot_order_path,screenshot_rating_path,
+                        mobile_number,
                         ip_address,user_agent_hash,submitted_at,
                         fraud_score,fraud_reasons,submission_count_snapshot,
                         verified_in_orders_csv)
-                      VALUES(%s,%s,%s,%s,'pending',%s,%s,%s,%s,NOW(),%s,%s,%s,FALSE)""",
-                        (order_id, email, name, t, op, rp, ip, uh,
-                         fraud_score, ",".join(fraud_reasons) or None, week_count))
+                      VALUES(%s,%s,%s,%s,'pending',%s,%s,%s,NOW(),%s,%s,%s,FALSE)""",
+                        (order_id, email, name, t, mobile_number,
+                         ip, uh, fraud_score,
+                         ",".join(fraud_reasons) or None, week_count))
                 token = t; break
             except Exception as e:
                 if "unique" in str(e).lower(): conn.rollback(); continue

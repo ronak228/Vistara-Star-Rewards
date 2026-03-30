@@ -201,6 +201,21 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="mobile_number" class="form-label">
+                            <span data-i18n="labelMobile">Mobile Number</span>
+                            <span class="optional" data-i18n="optional">(Optional)</span>
+                        </label>
+                        <input type="tel" id="mobile_number" name="mobile_number" class="form-input"
+                            data-i18n="placeholderMobile" data-i18n-attr="placeholder"
+                            placeholder="e.g., 9876543210"
+                            inputmode="numeric"
+                            maxlength="10"
+                            pattern="[6-9][0-9]{9}">
+                        <small class="form-hint" data-i18n="mobileHint">Optional — only used to contact you about your reward if needed 🔒</small>
+                        <span class="error-message" id="mobileError"></span>
+                    </div>
+
+                    <div class="form-group">
                         <label for="order_id" class="form-label">
                             <span data-i18n="labelOrderId">Order ID</span>
                             <span class="required">*</span>
@@ -216,46 +231,9 @@
                         <small class="form-hint" data-i18n="orderIdHint">Find this in Meesho app → My Orders → tap order → Order ID (e.g., 265437129718567616_1)</small>
                     </div>
 
-                    <div class="form-group">
-                        <label for="order_screenshot" class="form-label">
-                            <span data-i18n="labelOrderScreenshot">Order Screenshot</span>
-                            <span class="required">*</span>
-                        </label>
-                        <div class="file-upload">
-                            <input type="file" id="order_screenshot" name="order_screenshot"
-                                class="file-input" accept="image/*" required>
-                            <div class="file-upload-content">
-                                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="17 8 12 3 7 8"></polyline>
-                                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg>
-                                <p class="upload-text" data-i18n="uploadText">Tap to upload screenshot</p>
-                                <p class="upload-hint" data-i18n="uploadHint">PNG, JPG or GIF (max. 5MB)</p>
-                            </div>
-                        </div>
-                        <span class="error-message" id="orderScreenshotError"></span>
-                    </div>
 
-                    <div class="form-group">
-                        <label for="rating_screenshot" class="form-label">
-                            <span data-i18n="labelRatingScreenshot">Rating Screenshot</span>
-                            <span class="optional" data-i18n="optional">(Optional)</span>
-                        </label>
-                        <div class="file-upload">
-                            <input type="file" id="rating_screenshot" name="rating_screenshot"
-                                class="file-input" accept="image/*">
-                            <div class="file-upload-content">
-                                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="17 8 12 3 7 8"></polyline>
-                                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg>
-                                <p class="upload-text" data-i18n="uploadText">Tap to upload screenshot</p>
-                                <p class="upload-hint" data-i18n="uploadHint">PNG, JPG or GIF (max. 5MB)</p>
-                            </div>
-                        </div>
-                    </div>
+
+
 
                     <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
                         <span data-i18n="submitBtn">Unlock My Stars ⭐</span>

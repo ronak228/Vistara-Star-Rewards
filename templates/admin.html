@@ -814,13 +814,13 @@ code {
           <table>
             <thead>
               <tr>
-                <th>Order ID</th><th>Email</th><th>Status</th>
+                <th>Order ID</th><th>Email</th><th>Mobile</th><th>Status</th>
                 <th>Verified?</th><th>Days</th>
                 <th>Submitted</th><th>Actions</th>
               </tr>
             </thead>
             <tbody id="orders-body">
-              <tr><td colspan="7" style="text-align:center;color:var(--muted)">Loading…</td></tr>
+              <tr><td colspan="8" style="text-align:center;color:var(--muted)">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -998,16 +998,20 @@ async function loadOrders() {
   updateCounts(r.counts||{});
   const tb = document.getElementById('orders-body');
   if (!r.orders.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted)">No orders found</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted)">No orders found</td></tr>';
     return;
   }
   const now = Date.now();
   tb.innerHTML = r.orders.map(o=>{
     const days = o.submitted_at ? Math.floor((now-new Date(o.submitted_at))/86400000) : '—';
     const verified = o.verified_in_orders_csv ? '<span style="color:var(--success);font-weight:700">✓</span>' : '<span style="color:var(--warning);font-weight:700">✗</span>';
+    const mobile = o.mobile_number
+      ? `<a href="https://wa.me/91${o.mobile_number}" target="_blank" style="color:#25D366;font-weight:600;font-size:12px">📱 ${o.mobile_number}</a>`
+      : '<span style="color:#ccc;font-size:12px">—</span>';
     return `<tr>
       <td><code>${o.order_id}</code></td>
       <td>${o.email}</td>
+      <td>${mobile}</td>
       <td><span class="badge badge-${o.status}">${o.status}</span></td>
       <td style="text-align:center">${verified}</td>
       <td>${days}d</td>

@@ -82,7 +82,7 @@ const translations = {
     trust1Title: "Safe & Secure",
     trust1Desc: "Your data is encrypted and protected with industry-standard security",
     trust2Title: "Trusted by Customers",
-    trust2Desc: "Thousands of happy families earning rewards every month",
+    trust2Desc: "A growing community of Meesho buyers earning real rewards",
     trust3Title: "Verified Rewards",
     trust3Desc: "100% authentic rewards program backed by Vistara Essentials",
 
@@ -155,7 +155,7 @@ const translations = {
     statusUnderReview:    "Delivery Confirmed — In Cooling Period",
     statusRejected:       "Rejected Orders",
     pendingNote:          "⏳ Your order is being verified. Stars are added once delivery is confirmed.",
-    underReviewNote:      "🔍 Delivery confirmed! Stars will be credited in 10–14 days after the return window closes.",
+    underReviewNote:      "🔍 Delivery confirmed! Stars will be credited within 15 days after the return window closes.",
     pendingLabel:         "Pending",
     underReviewLabel:     "Under Review",
     approvedLabel:        "Approved",
@@ -174,7 +174,7 @@ const translations = {
     step2Title:    "Place Your Order",
     step2Desc:     "Order any product from our Meesho store and submit the Order ID here after purchase",
     step3Title:    "Get Your Star",
-    step3Desc:     "Upload your order screenshot. Once delivery is confirmed, your star is credited within 14-21 days",
+    step3Desc:     "Upload your order screenshot. Once delivery is confirmed, your star is credited within 15 days",
     step4Title:    "Win Amazing Prizes",
     step4Desc:     "5 Stars = Free Gift 🎁  |  10 Stars = Premium Prize 🏆  |  Rate us for lucky draw entry!",
     shopUrl:       "https://www.meesho.com/VistaraEssentials?_ms=3.0.1",
@@ -190,7 +190,7 @@ const translations = {
 
     // ── Support / Contact ─────────────────────────────────────────────
     supportTitle:      "Need Help? Contact Us on WhatsApp",
-    supportDesc:       "If your stars haven't appeared after 21 days, or you've reached 5/10 stars and want to claim your reward — message us on WhatsApp with your token",
+    supportDesc:       "If your stars haven't appeared after 15 days, or you've reached 5/10 stars and want to claim your reward — message us on WhatsApp with your token",
     supportTokenLabel: "Your Reward Token",
     supportStep1:      "After submitting, you receive a Reward Token (e.g. VST-1234) — save it",
     supportStep2:      "Open WhatsApp → tap our number → send your Token + Email",
@@ -286,7 +286,7 @@ const translations = {
     trust1Title: "सुरक्षित और भरोसेमंद",
     trust1Desc: "आपका डेटा एन्क्रिप्टेड और सुरक्षित है",
     trust2Title: "ग्राहकों का भरोसा",
-    trust2Desc: "हर महीने हजारों परिवार रिवॉर्ड कमा रहे हैं",
+    trust2Desc: "Meesho खरीदारों का बढ़ता समुदाय जो असली रिवॉर्ड कमा रहा है",
     trust3Title: "सत्यापित रिवॉर्ड",
     trust3Desc: "Vistara Essentials का 100% प्रामाणिक रिवॉर्ड प्रोग्राम",
 
@@ -378,7 +378,7 @@ const translations = {
     step2Title:    "ऑर्डर करें",
     step2Desc:     "हमारी Meesho स्टोर से कोई भी प्रोडक्ट ऑर्डर करें और खरीदारी के बाद यहाँ ऑर्डर ID जमा करें",
     step3Title:    "स्टार पाएं",
-    step3Desc:     "ऑर्डर स्क्रीनशॉट अपलोड करें। डिलीवरी कन्फर्म होने के 14-21 दिन में स्टार मिलेगा",
+    step3Desc:     "ऑर्डर स्क्रीनशॉट अपलोड करें। डिलीवरी कन्फर्म होने के 15 दिन में स्टार मिलेगा",
     step4Title:    "अमेज़िंग पुरस्कार जीतें",
     step4Desc:     "5 स्टार = फ्री गिफ्ट 🎁  |  10 स्टार = प्रीमियम पुरस्कार 🏆  |  रेटिंग दें और लकी ड्रा में शामिल हों!",
     shopUrl:       "https://www.meesho.com/VistaraEssentials?_ms=3.0.1",
@@ -394,7 +394,7 @@ const translations = {
 
     // ── Support / Contact ─────────────────────────────────────────────
     supportTitle:      "मदद चाहिए? WhatsApp पर हमसे बात करें",
-    supportDesc:       "अगर 21 दिन बाद भी स्टार नहीं आया, या 5/10 स्टार पूरे हो गए और रिवॉर्ड क्लेम करना है — अपना टोकन लेकर WhatsApp पर मैसेज करें",
+    supportDesc:       "अगर 15 दिन बाद भी स्टार नहीं आया, या 5/10 स्टार पूरे हो गए और रिवॉर्ड क्लेम करना है — अपना टोकन लेकर WhatsApp पर मैसेज करें",
     supportTokenLabel: "आपका रिवॉर्ड टोकन",
     supportStep1:      "सबमिट करने के बाद आपको एक रिवॉर्ड टोकन मिलेगा (जैसे VST-1234) — इसे सेव करें",
     supportStep2:      "WhatsApp खोलें → हमारा नंबर टैप करें → टोकन + ईमेल भेजें",

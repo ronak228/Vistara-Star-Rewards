@@ -2425,3 +2425,14 @@ body {
   .cs-summary-bar { flex-direction: column; align-items: flex-start; }
   .orc-top { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Shop button in hero ─────────────────────────────────────────── */
+.hero-shop-btn:hover {
+  background: #FF6B6B !important;
+  color: #fff !important;
+}
+
+/* ── Seller intro responsive ─────────────────────────────────────── */
+@media (max-width: 480px) {
+  .seller-intro-card { padding: 18px 14px !important; }
+}

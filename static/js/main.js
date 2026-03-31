@@ -439,6 +439,7 @@ orderIdInput.addEventListener('input', () => {
     orderIdInput.classList.add('valid-input');
     orderIdInput.classList.remove('invalid-input');
   } else {
+
     // Only show red after user has typed something substantial
     if (val.length >= 5) {
       orderIdInput.classList.add('invalid-input');

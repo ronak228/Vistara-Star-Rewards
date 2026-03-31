@@ -103,6 +103,24 @@ function renderResults(data) {
   if (t5)  { t5.classList.toggle('unlocked', approved >= 5);  t5.classList.toggle('locked', approved < 5); }
   if (t10) { t10.classList.toggle('unlocked', approved >= 10); t10.classList.toggle('locked', approved < 10); }
 
+  // --- Claim button if 5+ stars ---
+  const existingClaimBtn = document.getElementById('claimRewardBtnCS');
+  if (existingClaimBtn) existingClaimBtn.remove();
+  if (approved >= 5) {
+    const claimBtn = document.createElement('div');
+    claimBtn.id = 'claimRewardBtnCS';
+    claimBtn.style.cssText = 'margin-top:16px;text-align:center';
+    const isPremium = approved >= 10;
+    claimBtn.innerHTML = `
+      <button onclick="openClaimFromCheckStars(${approved})"
+        style="display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#FF6B6B,#ee5a24);color:#fff;font-weight:700;font-size:1rem;padding:14px 28px;border-radius:12px;border:none;cursor:pointer;box-shadow:0 4px 18px rgba(255,107,107,0.35);width:100%;justify-content:center;max-width:340px">
+        ${isPremium ? '🏆' : '🎁'} Claim My ${isPremium ? 'Premium Prize' : 'Free Reward'} Now →
+      </button>
+      <p style="font-size:11px;color:#888;margin-top:8px">You'll be redirected to WhatsApp with all your details pre-filled</p>`;
+    const tiersEl = document.querySelector('.cs-tiers');
+    if (tiersEl) tiersEl.after(claimBtn);
+  }
+
   // --- Order records ---
   renderOrderRecords(orders);
 

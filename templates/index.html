@@ -271,22 +271,26 @@
                         <small class="form-hint" data-i18n="orderIdHint">Meesho app → My Orders → tap order → Order ID</small>
                     </div>
 
-                    <!-- Rating Screenshot — optional, compact, no extra star line -->
+                    <!-- Rating Screenshot — REQUIRED to earn stars -->
                     <div class="form-group">
                         <label class="form-label" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                            <span data-i18n="labelRatingScreenshot">📸 Rating Screenshot</span>
-                            <span style="font-size:10.5px;color:#b37000;font-weight:500;background:#FEF9EC;padding:2px 8px;border-radius:20px;border:1px solid #f4a83a;white-space:nowrap">Optional</span>
+                            <span data-i18n="labelRatingScreenshot">📸 Meesho Rating Screenshot</span>
+                            <span style="font-size:10.5px;color:#c0392b;font-weight:600;background:#fff0f0;padding:2px 8px;border-radius:20px;border:1px solid #e74c3c;white-space:nowrap">Required *</span>
                         </label>
-                        <div class="rating-upload-box" id="ratingUploadArea">
+                        <div style="background:#fffbf0;border:1px solid #f4a83a;border-radius:8px;padding:9px 11px;margin-bottom:7px;font-size:11.5px;color:#7d5a00;line-height:1.5">
+                            ⭐ <strong>Step 1:</strong> Open Meesho app → Go to your order → Tap "Rate Product" → Give 5 stars<br>
+                            📷 <strong>Step 2:</strong> Take a screenshot of your rating &amp; upload below — <strong>this is required to earn your star</strong>
+                        </div>
+                        <div class="rating-upload-box" id="ratingUploadArea" style="border-color:#e74c3c;background:#fff8f8;">
                             <input type="file" id="rating_image" name="rating_image"
-                                accept="image/jpeg,image/png,image/gif,image/webp" style="display:none">
+                                accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" required>
                             <div id="ratingUploadText">
                                 <div class="rating-upload-cam">📷</div>
-                                <div class="rating-upload-main">Tap to upload your Meesho rating screenshot</div>
-                                <div style="font-size:11px;color:#e09600;margin-top:3px;font-weight:500">→ Enters you in our monthly lucky draw for a FREE product!</div>
-                                <div class="rating-upload-sub">JPG / PNG / WEBP · Max 5 MB</div>
+                                <div class="rating-upload-main" style="color:#c0392b;">Tap to upload your Meesho rating screenshot</div>
+                                <div style="font-size:11px;color:#888;margin-top:2px">JPG / PNG / WEBP · Max 5 MB</div>
                             </div>
                         </div>
+                        <span class="error-message" id="ratingImageError"></span>
                     </div>
 
                     <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
@@ -422,7 +426,9 @@
         </div>
     </section>
 
-    <!-- SHARE & WIN — updated prizes -->
+    <!-- ══════════════════════════════════════════════════════════════════
+         GIVEAWAY SECTION — COMMENTED OUT (do not delete, may re-enable later)
+         ══════════════════════════════════════════════════════════════════
     <section class="share-section">
         <div class="container">
             <div class="share-card">
@@ -449,8 +455,11 @@
             </div>
         </div>
     </section>
+    ══════════════════════════════════════════════════════════════════ -->
 
-    <!-- SUPPORT -->
+    <!-- ══════════════════════════════════════════════════════════════════
+         OLD SUPPORT SECTION — COMMENTED OUT (replaced by floating WhatsApp button)
+         ══════════════════════════════════════════════════════════════════
     <section class="support-section">
         <div class="container">
             <div class="support-card">
@@ -489,6 +498,115 @@
             </div>
         </div>
     </section>
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── FLOATING WHATSAPP SUPPORT BUTTON ── -->
+    <div id="floatingSupportBtn" style="position:fixed;bottom:24px;right:20px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+        <!-- Tooltip bubble (shows on hover/tap) -->
+        <div id="supportTooltip" style="display:none;background:#1a1a1a;color:#fff;font-size:12px;font-weight:600;padding:8px 13px;border-radius:10px;white-space:nowrap;max-width:220px;line-height:1.4;text-align:center">
+            💬 Need help with your order?<br>
+            <span style="font-weight:400;font-size:11px;opacity:0.85">Tap to chat with us on WhatsApp</span>
+        </div>
+        <!-- The button itself -->
+        <button onclick="toggleSupportPopup()" style="width:56px;height:56px;border-radius:50%;background:#25D366;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(37,211,102,0.45);transition:transform .18s" onmouseover="document.getElementById('supportTooltip').style.display='block'" onmouseout="document.getElementById('supportTooltip').style.display='none'" aria-label="Support">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.413A9.953 9.953 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm4.93 13.385c-.207.583-1.21 1.115-1.655 1.183-.446.068-.888.335-2.916-.608-2.46-1.134-4.032-3.65-4.153-3.818-.12-.168-.98-1.302-.98-2.484 0-1.183.618-1.765.837-2.007.22-.242.48-.303.64-.303.16 0 .32.002.46.008.147.007.345-.056.54.413.207.491.702 1.708.763 1.832.061.123.102.268.02.43-.08.163-.12.263-.24.406-.12.142-.253.318-.36.427-.12.12-.244.25-.105.49.14.24.62 1.022 1.33 1.656.913.812 1.683 1.063 1.923 1.183.24.12.38.1.52-.06.14-.162.6-.7.76-.94.16-.24.32-.2.54-.12.22.08 1.4.66 1.64.78.24.12.4.18.46.28.06.1.06.58-.147 1.163z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- ── SUPPORT POPUP (slides up from floating button) ── -->
+    <div id="supportPopup" style="display:none;position:fixed;bottom:92px;right:16px;z-index:9998;width:min(320px,calc(100vw - 32px));background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);overflow:hidden;border:1px solid #e8e8e8">
+        <div style="background:#25D366;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:18px">🛍️</div>
+                <div>
+                    <div style="color:#fff;font-weight:700;font-size:14px">Vistara Essentials</div>
+                    <div style="color:rgba(255,255,255,0.85);font-size:11px">⚡ Replies within 24 hours</div>
+                </div>
+            </div>
+            <button onclick="toggleSupportPopup()" style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:20px;cursor:pointer;line-height:1;padding:0">✕</button>
+        </div>
+        <div style="padding:16px">
+            <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;margin-bottom:14px;border-left:3px solid #25D366">
+                <p style="font-size:13px;color:#1a5c2e;font-weight:600;margin-bottom:3px">👋 Hi! How can we help?</p>
+                <p style="font-size:12px;color:#555;margin:0">Stars missing? Reward not received? Just message us!</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <a id="supportQuickBtn1" href="#" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#f8f8f8;border-radius:10px;text-decoration:none;border:1px solid #eee;transition:background .15s" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='#f8f8f8'">
+                    <span style="font-size:18px">⭐</span>
+                    <div>
+                        <div style="font-size:13px;font-weight:600;color:#1a1a1a">My stars are not showing</div>
+                        <div style="font-size:11px;color:#888">Check star status</div>
+                    </div>
+                </a>
+                <a id="supportQuickBtn2" href="#" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#f8f8f8;border-radius:10px;text-decoration:none;border:1px solid #eee;transition:background .15s" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='#f8f8f8'">
+                    <span style="font-size:18px">🎁</span>
+                    <div>
+                        <div style="font-size:13px;font-weight:600;color:#1a1a1a">I want to claim my reward</div>
+                        <div style="font-size:11px;color:#888">5 or 10 stars reached</div>
+                    </div>
+                </a>
+                <a id="supportQuickBtn3" href="#" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#f8f8f8;border-radius:10px;text-decoration:none;border:1px solid #eee;transition:background .15s" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='#f8f8f8'">
+                    <span style="font-size:18px">❓</span>
+                    <div>
+                        <div style="font-size:13px;font-weight:600;color:#1a1a1a">Other question</div>
+                        <div style="font-size:11px;color:#888">Chat with us</div>
+                    </div>
+                </a>
+            </div>
+            <p style="font-size:10.5px;color:#aaa;text-align:center;margin-top:12px;margin-bottom:0">Powered by WhatsApp · Vistara Essentials</p>
+        </div>
+    </div>
+
+    <!-- ── CLAIM REWARD POPUP (shown when user has 5+ stars) ── -->
+    <div id="claimRewardOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;padding:16px">
+        <div style="background:#fff;border-radius:20px;width:min(380px,100%);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);animation:claimSlideUp .35s ease">
+            <!-- Header -->
+            <div style="background:linear-gradient(135deg,#FF6B6B,#ee5a24);padding:20px 18px;text-align:center;position:relative">
+                <button onclick="closeClaimPopup()" style="position:absolute;top:10px;right:12px;background:rgba(255,255,255,0.25);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+                <div style="font-size:2.8rem;margin-bottom:6px" id="claimEmoji">🎉</div>
+                <h3 style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:4px" id="claimTitle">You've reached 5 Stars!</h3>
+                <p style="color:rgba(255,255,255,0.9);font-size:0.82rem;margin:0" id="claimSubtitle">Your free reward is ready to claim</p>
+            </div>
+            <!-- Product info -->
+            <div style="padding:18px 18px 0">
+                <div style="background:#fff9f0;border-radius:12px;padding:14px;border:2px dashed #FF6B6B;margin-bottom:14px">
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <div style="font-size:2.2rem" id="claimProductEmoji">👕</div>
+                        <div>
+                            <div style="font-weight:700;font-size:0.95rem;color:#1a1a1a" id="claimProductName">FREE Boys T-Shirt</div>
+                            <div style="font-size:0.8rem;color:#666;margin-top:2px" id="claimProductDesc">Worth ₹199 — delivered free to your address</div>
+                            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap" id="claimProductBadges">
+                                <span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:20px;font-weight:600">🚚 Free Delivery</span>
+                                <span style="font-size:11px;background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:20px;font-weight:600">✓ Verified Reward</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- User details summary -->
+                <div style="background:#f8f8f8;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px">
+                    <div style="font-weight:600;color:#555;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Your Details</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                        <div><span style="color:#888">Name:</span> <span style="font-weight:600;color:#1a1a1a" id="claimUserName">—</span></div>
+                        <div><span style="color:#888">Stars:</span> <span style="font-weight:600;color:#FF6B6B" id="claimUserStars">—</span></div>
+                        <div style="grid-column:1/-1"><span style="color:#888">Email:</span> <span style="font-weight:600;color:#1a1a1a" id="claimUserEmail">—</span></div>
+                        <div style="grid-column:1/-1"><span style="color:#888">Token:</span> <span style="font-weight:700;color:#FF6B6B;font-family:monospace" id="claimUserToken">—</span></div>
+                    </div>
+                </div>
+                <p style="font-size:11.5px;color:#888;text-align:center;margin-bottom:14px">Tap below — we'll open WhatsApp with all your details pre-filled. Just send the message!</p>
+            </div>
+            <div style="padding:0 18px 18px">
+                <a id="claimWhatsappLink" href="#" target="_blank" onclick="closeClaimPopup()" style="display:flex;align-items:center;justify-content:center;gap:10px;background:#25D366;color:#fff;font-weight:700;font-size:1rem;padding:14px;border-radius:12px;text-decoration:none;width:100%;box-sizing:border-box">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.413A9.953 9.953 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm4.93 13.385c-.207.583-1.21 1.115-1.655 1.183-.446.068-.888.335-2.916-.608-2.46-1.134-4.032-3.65-4.153-3.818-.12-.168-.98-1.302-.98-2.484 0-1.183.618-1.765.837-2.007.22-.242.48-.303.64-.303.16 0 .32.002.46.008.147.007.345-.056.54.413.207.491.702 1.708.763 1.832.061.123.102.268.02.43-.08.163-.12.263-.24.406-.12.142-.253.318-.36.427-.12.12-.244.25-.105.49.14.24.62 1.022 1.33 1.656.913.812 1.683 1.063 1.923 1.183.24.12.38.1.52-.06.14-.162.6-.7.76-.94.16-.24.32-.2.54-.12.22.08 1.4.66 1.64.78.24.12.4.18.46.28.06.1.06.58-.147 1.163z"/></svg>
+                    Claim on WhatsApp →
+                </a>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes claimSlideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
 
     <!-- ABOUT — slim -->
     <section style="padding:16px 0;background:#f8f9fa;border-top:1px solid #eee">

@@ -385,12 +385,13 @@ def submit():
             return jsonify({"success": False, "error": "Screenshot must be JPG, PNG, GIF or WEBP."}), 400
         screenshot_path = save_file(ss_file, f"ss_{order_id}_{secure_filename(ss_file.filename)}")
 
-    rating_image_path = None
+    # ── Rating screenshot is REQUIRED — must upload Meesho rating screenshot to earn stars ──
     ri_file = request.files.get("rating_image")
-    if ri_file and ri_file.filename:
-        if not ok_ext(ri_file.filename):
-            return jsonify({"success": False, "error": "Rating image must be JPG, PNG, GIF or WEBP."}), 400
-        rating_image_path = save_file(ri_file, f"rating_{order_id}_{secure_filename(ri_file.filename)}")
+    if not ri_file or not ri_file.filename:
+        return jsonify({"success": False, "error": "Rating screenshot is required. Please rate us on Meesho first, then upload the screenshot here to earn your star."}), 400
+    if not ok_ext(ri_file.filename):
+        return jsonify({"success": False, "error": "Rating image must be JPG, PNG, GIF or WEBP."}), 400
+    rating_image_path = save_file(ri_file, f"rating_{order_id}_{secure_filename(ri_file.filename)}")
     # ──────────────────────────────────────────────────────────────────
 
     if not name or not email or not order_id:

@@ -203,5 +203,141 @@
 
     <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
     <script src="{{ url_for('static', filename='js/check-stars.js') }}"></script>
-</body>
+
+    <!-- ── FLOATING WHATSAPP SUPPORT BUTTON ── -->
+    <div id="floatingSupportBtn" style="position:fixed;bottom:24px;right:20px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+        <div id="supportTooltip" style="display:none;background:#1a1a1a;color:#fff;font-size:12px;font-weight:600;padding:8px 13px;border-radius:10px;white-space:nowrap;max-width:220px;line-height:1.4;text-align:center">
+            💬 Need help with your stars?<br>
+            <span style="font-weight:400;font-size:11px;opacity:0.85">Tap to chat with us on WhatsApp</span>
+        </div>
+        <button onclick="toggleSupportPopup()" style="width:56px;height:56px;border-radius:50%;background:#25D366;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(37,211,102,0.45)" onmouseover="document.getElementById('supportTooltip').style.display='block'" onmouseout="document.getElementById('supportTooltip').style.display='none'" aria-label="Support">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.413A9.953 9.953 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm4.93 13.385c-.207.583-1.21 1.115-1.655 1.183-.446.068-.888.335-2.916-.608-2.46-1.134-4.032-3.65-4.153-3.818-.12-.168-.98-1.302-.98-2.484 0-1.183.618-1.765.837-2.007.22-.242.48-.303.64-.303.16 0 .32.002.46.008.147.007.345-.056.54.413.207.491.702 1.708.763 1.832.061.123.102.268.02.43-.08.163-.12.263-.24.406-.12.142-.253.318-.36.427-.12.12-.244.25-.105.49.14.24.62 1.022 1.33 1.656.913.812 1.683 1.063 1.923 1.183.24.12.38.1.52-.06.14-.162.6-.7.76-.94.16-.24.32-.2.54-.12.22.08 1.4.66 1.64.78.24.12.4.18.46.28.06.1.06.58-.147 1.163z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- ── SUPPORT POPUP ── -->
+    <div id="supportPopup" style="display:none;position:fixed;bottom:92px;right:16px;z-index:9998;width:min(320px,calc(100vw - 32px));background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.18);overflow:hidden;border:1px solid #e8e8e8">
+        <div style="background:#25D366;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;font-size:18px">🛍️</div>
+                <div>
+                    <div style="color:#fff;font-weight:700;font-size:14px">Vistara Essentials</div>
+                    <div style="color:rgba(255,255,255,0.85);font-size:11px">⚡ Replies within 24 hours</div>
+                </div>
+            </div>
+            <button onclick="toggleSupportPopup()" style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:20px;cursor:pointer;line-height:1;padding:0">✕</button>
+        </div>
+        <div style="padding:16px">
+            <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;margin-bottom:14px;border-left:3px solid #25D366">
+                <p style="font-size:13px;color:#1a5c2e;font-weight:600;margin-bottom:3px">👋 Hi! How can we help?</p>
+                <p style="font-size:12px;color:#555;margin:0">Stars missing? Reward not received? Just message us!</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <a id="csQuickBtn1" href="#" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#f8f8f8;border-radius:10px;text-decoration:none;border:1px solid #eee">
+                    <span style="font-size:18px">⭐</span>
+                    <div><div style="font-size:13px;font-weight:600;color:#1a1a1a">My stars are not showing</div><div style="font-size:11px;color:#888">Check star status</div></div>
+                </a>
+                <a id="csQuickBtn2" href="#" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#f8f8f8;border-radius:10px;text-decoration:none;border:1px solid #eee">
+                    <span style="font-size:18px">🎁</span>
+                    <div><div style="font-size:13px;font-weight:600;color:#1a1a1a">I want to claim my reward</div><div style="font-size:11px;color:#888">5 or 10 stars reached</div></div>
+                </a>
+                <a id="csQuickBtn3" href="#" target="_blank" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#f8f8f8;border-radius:10px;text-decoration:none;border:1px solid #eee">
+                    <span style="font-size:18px">❓</span>
+                    <div><div style="font-size:13px;font-weight:600;color:#1a1a1a">Other question</div><div style="font-size:11px;color:#888">Chat with us</div></div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── CLAIM REWARD POPUP ── -->
+    <div id="claimRewardOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;padding:16px">
+        <div style="background:#fff;border-radius:20px;width:min(380px,100%);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+            <div style="background:linear-gradient(135deg,#FF6B6B,#ee5a24);padding:20px 18px;text-align:center;position:relative">
+                <button onclick="closeClaimPopup()" style="position:absolute;top:10px;right:12px;background:rgba(255,255,255,0.25);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:14px;cursor:pointer">✕</button>
+                <div style="font-size:2.8rem;margin-bottom:6px" id="claimEmoji">🎉</div>
+                <h3 style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:4px" id="claimTitle">Claim Your Reward!</h3>
+                <p style="color:rgba(255,255,255,0.9);font-size:0.82rem;margin:0" id="claimSubtitle">Your free reward is ready</p>
+            </div>
+            <div style="padding:18px 18px 0">
+                <div style="background:#fff9f0;border-radius:12px;padding:14px;border:2px dashed #FF6B6B;margin-bottom:14px">
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <div style="font-size:2.2rem" id="claimProductEmoji">👕</div>
+                        <div>
+                            <div style="font-weight:700;font-size:0.95rem;color:#1a1a1a" id="claimProductName">FREE Boys T-Shirt</div>
+                            <div style="font-size:0.8rem;color:#666;margin-top:2px" id="claimProductDesc">Worth ₹199 — delivered free!</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="background:#f8f8f8;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px">
+                    <div style="font-weight:600;color:#555;margin-bottom:8px;font-size:11px">YOUR DETAILS</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                        <div><span style="color:#888">Email:</span> <span style="font-weight:600;color:#1a1a1a" id="claimUserEmail">—</span></div>
+                        <div><span style="color:#888">Stars:</span> <span style="font-weight:600;color:#FF6B6B" id="claimUserStars">—</span></div>
+                    </div>
+                </div>
+                <p style="font-size:11.5px;color:#888;text-align:center;margin-bottom:14px">Tap below — WhatsApp will open with your details pre-filled!</p>
+            </div>
+            <div style="padding:0 18px 18px">
+                <a id="claimWhatsappLink" href="#" target="_blank" onclick="closeClaimPopup()" style="display:flex;align-items:center;justify-content:center;gap:10px;background:#25D366;color:#fff;font-weight:700;font-size:1rem;padding:14px;border-radius:12px;text-decoration:none;width:100%;box-sizing:border-box">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.413A9.953 9.953 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm4.93 13.385c-.207.583-1.21 1.115-1.655 1.183-.446.068-.888.335-2.916-.608-2.46-1.134-4.032-3.65-4.153-3.818-.12-.168-.98-1.302-.98-2.484 0-1.183.618-1.765.837-2.007.22-.242.48-.303.64-.303.16 0 .32.002.46.008.147.007.345-.056.54.413.207.491.702 1.708.763 1.832.061.123.102.268.02.43-.08.163-.12.263-.24.406-.12.142-.253.318-.36.427-.12.12-.244.25-.105.49.14.24.62 1.022 1.33 1.656.913.812 1.683 1.063 1.923 1.183.24.12.38.1.52-.06.14-.162.6-.7.76-.94.16-.24.32-.2.54-.12.22.08 1.4.66 1.64.78.24.12.4.18.46.28.06.1.06.58-.147 1.163z"/></svg>
+                    Claim on WhatsApp →
+                </a>
+            </div>
+        </div>
+    </div>
+    <style>@keyframes claimSlideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}</style>
+
+    <script>
+    const WA_NUM = '919054396696';
+    function waLink(msg){ return `https://wa.me/${WA_NUM}?text=${encodeURIComponent(msg)}`; }
+
+    function toggleSupportPopup(){
+        const p=document.getElementById('supportPopup');
+        if(p) p.style.display = p.style.display==='none'?'block':'none';
+    }
+    document.addEventListener('click',(e)=>{
+        const p=document.getElementById('supportPopup'),b=document.getElementById('floatingSupportBtn');
+        if(p&&b&&p.style.display!=='none'&&!p.contains(e.target)&&!b.contains(e.target)) p.style.display='none';
+    });
+
+    // Setup support quick buttons
+    document.addEventListener('DOMContentLoaded',()=>{
+        const q1=document.getElementById('csQuickBtn1');
+        const q2=document.getElementById('csQuickBtn2');
+        const q3=document.getElementById('csQuickBtn3');
+        if(q1) q1.href=waLink('Hi Vistara Essentials! My stars are not showing.\nMy Email: [your email]\nMy Token: [your token]\nPlease help.');
+        if(q2) q2.href=waLink('Hi Vistara Essentials! I want to claim my reward.\nMy Email: [your email]\nPlease help me claim.');
+        if(q3) q3.href=waLink('Hi Vistara Essentials! I have a question about my order/reward.\nMy Email: [your email]');
+    });
+
+    // Claim popup for check-stars page
+    function openClaimFromCheckStars(stars){
+        const email = document.getElementById('checkEmail')?.value?.trim() || '—';
+        const isPremium = stars >= 10;
+        document.getElementById('claimEmoji').textContent = isPremium ? '🏆' : '🎉';
+        document.getElementById('claimTitle').textContent = isPremium ? "🏆 Claim Your Premium Prize!" : "🎁 Claim Your Free T-Shirt!";
+        document.getElementById('claimSubtitle').textContent = isPremium ? "Kids Clothing Set (₹399) — ready to ship!" : "Boys T-Shirt (₹199) — ready to ship!";
+        document.getElementById('claimProductEmoji').textContent = isPremium ? '🎀' : '👕';
+        document.getElementById('claimProductName').textContent = isPremium ? 'FREE Kids Clothing Set' : 'FREE Boys T-Shirt';
+        document.getElementById('claimProductDesc').textContent = isPremium ? 'Worth ₹399 — our best reward, delivered free!' : 'Worth ₹199 — delivered free to your address!';
+        document.getElementById('claimUserEmail').textContent = email;
+        document.getElementById('claimUserStars').textContent = `${stars} ⭐`;
+        const waMsg = isPremium
+            ? `🏆 *Claiming 10-Star Premium Prize!*\n\nEmail: ${email}\nStars: ${stars} ⭐\nReward: FREE Kids Clothing Set (₹399)\n\nPlease confirm and share delivery details. Thank you! 🙏`
+            : `🎉 *Claiming 5-Star Reward!*\n\nEmail: ${email}\nStars: ${stars} ⭐\nReward: FREE Boys T-Shirt (₹199)\n\nPlease confirm and share delivery details. Thank you! 🙏`;
+        document.getElementById('claimWhatsappLink').href = waLink(waMsg);
+        const overlay=document.getElementById('claimRewardOverlay');
+        if(overlay){overlay.style.display='flex';document.body.style.overflow='hidden';}
+    }
+    function closeClaimPopup(){
+        const o=document.getElementById('claimRewardOverlay');
+        if(o){o.style.display='none';document.body.style.overflow='auto';}
+    }
+    document.addEventListener('DOMContentLoaded',()=>{
+        const o=document.getElementById('claimRewardOverlay');
+        if(o) o.addEventListener('click',(e)=>{if(e.target===o)closeClaimPopup();});
+    });
+    </script></body>
 </html>

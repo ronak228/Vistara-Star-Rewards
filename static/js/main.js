@@ -23,30 +23,104 @@ function prewarmServer() {
     });
 }
 
-// ===== WHATSAPP BUTTON SETUP =====
+// ===== WHATSAPP SUPPORT POPUP =====
 function waLink(msg) {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
 }
 
-function setupWhatsAppButtons() {
-  // Support button
-  const supportBtn = document.getElementById('supportWhatsappBtn');
-  if (supportBtn) {
-    supportBtn.href = waLink(
-      `Hi ${SHOP_NAME} Team! I need help with my reward.\nMy Token: [paste your token here]\nMy Email: [your email]`
-    );
-  }
-  // Share button
-  const shareBtn = document.getElementById('shareWhatsappBtn');
-  if (shareBtn) {
-    shareBtn.href = waLink(
-      `I just rated ${SHOP_NAME} on Meesho! 🌟 Entering the lucky draw!\n[Attach your rating screenshot]`
-    );
-  }
+function toggleSupportPopup() {
+  const popup = document.getElementById('supportPopup');
+  if (!popup) return;
+  const isOpen = popup.style.display !== 'none';
+  popup.style.display = isOpen ? 'none' : 'block';
 }
 
-// ===== MILESTONE WHATSAPP BANNER =====
-function showMilestoneBanner(stars, token) {
+// Close support popup when clicking outside
+document.addEventListener('click', (e) => {
+  const popup   = document.getElementById('supportPopup');
+  const btn     = document.getElementById('floatingSupportBtn');
+  if (!popup || !btn) return;
+  if (popup.style.display !== 'none' && !popup.contains(e.target) && !btn.contains(e.target)) {
+    popup.style.display = 'none';
+  }
+});
+
+function setupWhatsAppButtons() {
+  // Support popup quick buttons
+  const q1 = document.getElementById('supportQuickBtn1');
+  const q2 = document.getElementById('supportQuickBtn2');
+  const q3 = document.getElementById('supportQuickBtn3');
+  if (q1) q1.href = waLink(`Hi Vistara Essentials! My stars are not showing.\nMy Email: [your email]\nMy Token: [your token]\nPlease help me check my star status.`);
+  if (q2) q2.href = waLink(`Hi Vistara Essentials! I have reached my reward milestone and want to claim my free product!\nMy Email: [your email]\nMy Token: [your token]\nPlease help me claim my reward.`);
+  if (q3) q3.href = waLink(`Hi Vistara Essentials! I have a question about my order/reward.\nMy Email: [your email]\nMy Token: [your token]`);
+}
+
+// ===== CLAIM REWARD POPUP (5 or 10 stars) =====
+function showClaimPopup(stars, token, name, email) {
+  const overlay = document.getElementById('claimRewardOverlay');
+  if (!overlay) return;
+
+  // Populate user details
+  document.getElementById('claimUserName').textContent  = name  || '—';
+  document.getElementById('claimUserEmail').textContent = email || '—';
+  document.getElementById('claimUserStars').textContent = `${stars} ⭐`;
+  document.getElementById('claimUserToken').textContent = token || '—';
+
+  let productName, productDesc, productEmoji, titleText, subtitleText, waMsg;
+
+  if (stars >= 10) {
+    titleText    = "🏆 You've reached 10 Stars!";
+    subtitleText = "Your Premium Prize is ready to claim!";
+    productEmoji = "🎀";
+    productName  = "FREE Kids Clothing Set";
+    productDesc  = "Worth ₹399 — our best reward, delivered free!";
+    waMsg = `🏆 *Claiming 10-Star Premium Prize!*\n\n` +
+            `Name: ${name || '—'}\n` +
+            `Email: ${email || '—'}\n` +
+            `Stars: ${stars} ⭐\n` +
+            `Token: ${token || '—'}\n` +
+            `Reward: FREE Kids Clothing Set (₹399)\n\n` +
+            `Please confirm my claim and share delivery details. Thank you! 🙏`;
+  } else {
+    titleText    = "🎉 You've reached 5 Stars!";
+    subtitleText = "Your FREE T-Shirt is ready to claim!";
+    productEmoji = "👕";
+    productName  = "FREE Boys T-Shirt";
+    productDesc  = "Worth ₹199 — delivered free to your address!";
+    waMsg = `🎉 *Claiming 5-Star Reward!*\n\n` +
+            `Name: ${name || '—'}\n` +
+            `Email: ${email || '—'}\n` +
+            `Stars: ${stars} ⭐\n` +
+            `Token: ${token || '—'}\n` +
+            `Reward: FREE Boys T-Shirt (₹199)\n\n` +
+            `Please confirm my claim and share delivery details. Thank you! 🙏`;
+  }
+
+  document.getElementById('claimEmoji').textContent        = stars >= 10 ? '🏆' : '🎉';
+  document.getElementById('claimTitle').textContent        = titleText;
+  document.getElementById('claimSubtitle').textContent     = subtitleText;
+  document.getElementById('claimProductEmoji').textContent = productEmoji;
+  document.getElementById('claimProductName').textContent  = productName;
+  document.getElementById('claimProductDesc').textContent  = productDesc;
+  document.getElementById('claimWhatsappLink').href        = waLink(waMsg);
+
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeClaimPopup() {
+  const overlay = document.getElementById('claimRewardOverlay');
+  if (overlay) { overlay.style.display = 'none'; document.body.style.overflow = 'auto'; }
+}
+
+// Close claim popup on overlay click
+document.addEventListener('DOMContentLoaded', () => {
+  const overlay = document.getElementById('claimRewardOverlay');
+  if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) closeClaimPopup(); });
+});
+
+// ===== MILESTONE BANNER (kept for backwards compat, now also triggers claim popup) =====
+function showMilestoneBanner(stars, token, name, email) {
   const banner  = document.getElementById('milestoneBanner');
   const emoji   = document.getElementById('milestoneEmoji');
   const title   = document.getElementById('milestoneTitle');
@@ -56,29 +130,25 @@ function showMilestoneBanner(stars, token) {
 
   let milestoneHit = false;
   if (stars >= 10) {
-    emoji.textContent  = '🏆';
-    title.textContent  = LangManager.get('milestone10Title');
-    msg.textContent    = LangManager.get('milestone10Msg');
+    if (emoji) emoji.textContent = '🏆';
+    if (title) title.textContent = LangManager.get('milestone10Title');
+    if (msg)   msg.textContent   = LangManager.get('milestone10Msg');
     milestoneHit = true;
-    waBtn.href = waLink(
-      `🏆 I've reached 10 Stars on ${SHOP_NAME}!\nMy Token: ${token}\nPlease help me claim my PREMIUM PRIZE!`
-    );
   } else if (stars >= 5) {
-    emoji.textContent  = '🎉';
-    title.textContent  = LangManager.get('milestone5Title');
-    msg.textContent    = LangManager.get('milestone5Msg');
+    if (emoji) emoji.textContent = '🎉';
+    if (title) title.textContent = LangManager.get('milestone5Title');
+    if (msg)   msg.textContent   = LangManager.get('milestone5Msg');
     milestoneHit = true;
-    waBtn.href = waLink(
-      `🎉 I've reached 5 Stars on ${SHOP_NAME}!\nMy Token: ${token}\nPlease help me claim my FREE GIFT!`
-    );
   }
 
   if (milestoneHit) {
+    if (waBtn) waBtn.style.display = 'none'; // claim popup replaces this
     banner.style.display = 'block';
     banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // Pulse animation
     banner.classList.add('milestone-pulse');
     setTimeout(() => banner.classList.remove('milestone-pulse'), 1500);
+    // Show claim popup after short delay
+    setTimeout(() => showClaimPopup(stars, token, name, email), 800);
   }
 }
 
@@ -186,6 +256,22 @@ function validateForm() {
     if (isValid) orderIdInput.focus(); isValid = false;
   }
 
+
+  // Rating image is REQUIRED
+  const ratingFile = document.getElementById('rating_image');
+  const ratingErr  = document.getElementById('ratingImageError');
+  if (!ratingFile || !ratingFile.files || ratingFile.files.length === 0) {
+    if (ratingErr) { ratingErr.textContent = 'Please upload your Meesho rating screenshot — it is required.'; ratingErr.classList.add('show'); }
+    // Scroll to upload area
+    const area = document.getElementById('ratingUploadArea');
+    if (area) area.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    isValid = false;
+  } else if (!isValidImage(ratingFile.files[0])) {
+    if (ratingErr) { ratingErr.textContent = 'Invalid file — use JPG/PNG/WEBP under 5MB.'; ratingErr.classList.add('show'); }
+    isValid = false;
+  } else {
+    if (ratingErr) { ratingErr.textContent = ''; ratingErr.classList.remove('show'); }
+  }
 
   return isValid;
 }
@@ -344,6 +430,8 @@ orderForm.addEventListener('submit', async (e) => {
 
 // ===== MODALS =====
 function showSuccessModal(token, totalStars) {
+  const name  = nameInput  ? nameInput.value.trim()  : '';
+  const email = emailInput ? emailInput.value.trim() : '';
   document.getElementById('tokenValue').textContent = token;
   let displayStars = '';
   for (let i = 0; i < Math.min(totalStars, 10); i++) displayStars += '⭐';
@@ -359,7 +447,7 @@ function showSuccessModal(token, totalStars) {
   document.body.style.overflow = 'hidden';
   // Check for milestone after showing modal
   setTimeout(() => {
-    if (totalStars >= 5) showMilestoneBanner(totalStars, token);
+    if (totalStars >= 5) showMilestoneBanner(totalStars, token, name, email);
   }, 1500);
 }
 

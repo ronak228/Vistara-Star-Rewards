@@ -11,22 +11,22 @@ const translations = {
     // Hero Section
     heroTitle1: "Unlock Your",
     heroHighlight: "Reward Stars",
-    heroSubtitle: "Earn rewards on every purchase for your kids. Every order brings you closer to exclusive gifts!",
+    heroSubtitle: "Every Meesho order earns 1 star. Collect 5 stars → get a FREE Boys T-Shirt (₹199 value)!",
     heroCta: "Submit Your Order",
 
     // Hero Badges
     badge1: "1 Order = 1 Star",
-    badge2: "5 Stars = Free Gift",
+    badge2: "5 Stars = Free T-Shirt",
     badge3: "Secure & Verified",
 
     // How It Works
     howItWorksTitle: "How It Works",
     howCard1Title: "1 Order = 1 Star",
     howCard1Desc: "Every purchase you make earns you one reward star",
-    howCard2Title: "5 Stars = Free Gift",
-    howCard2Desc: "Collect 5 stars and claim your first reward gift",
-    howCard3Title: "10 Stars = Premium Gift",
-    howCard3Desc: "Reach 10 stars for an exclusive premium gift",
+    howCard2Title: "5 Stars = Free T-Shirt",
+    howCard2Desc: "Collect 5 stars → claim a FREE Boys T-Shirt (₹199 value) delivered to you",
+    howCard3Title: "10 Stars = Premium Set",
+    howCard3Desc: "10 stars → get a FREE Kids Clothing Set (₹399 value) — our best reward!",
 
     // Form Section
     formTitle: "Submit Your Order",
@@ -85,8 +85,8 @@ const translations = {
     trustTitle: "Why Trust Vistara Essentials?",
     trust1Title: "Safe & Secure",
     trust1Desc: "Your data is encrypted and protected with industry-standard security",
-    trust2Title: "Trusted by Customers",
-    trust2Desc: "A growing community of Meesho buyers earning real rewards",
+    trust2Title: "Real Buyers, Real Rewards",
+    trust2Desc: "Every reward is personally sent by us — no middleman, no fake promises",
     trust3Title: "Verified Rewards",
     trust3Desc: "100% authentic rewards program backed by Vistara Essentials",
 
@@ -159,7 +159,7 @@ const translations = {
     statusUnderReview:    "Delivery Confirmed — In Cooling Period",
     statusRejected:       "Rejected Orders",
     pendingNote:          "⏳ Your order is being verified. Stars are added once delivery is confirmed.",
-    underReviewNote:      "🔍 Delivery confirmed! Stars will be credited within 15 days after the return window closes.",
+    underReviewNote:      "🔍 Delivery confirmed! Your star will be credited within 7 days.",
     pendingLabel:         "Pending",
     underReviewLabel:     "Under Review",
     approvedLabel:        "Approved",
@@ -178,23 +178,23 @@ const translations = {
     step2Title:    "Place Your Order",
     step2Desc:     "Order any product from our Meesho store and submit the Order ID here after purchase",
     step3Title:    "Get Your Star",
-    step3Desc:     "Upload your order screenshot. Once delivery is confirmed, your star is credited within 15 days",
+    step3Desc:     "Submit your Order ID here. After delivery is confirmed, your star is added within 7 days",
     step4Title:    "Win Amazing Prizes",
-    step4Desc:     "5 Stars = Free Gift 🎁  |  10 Stars = Premium Prize 🏆  |  Rate us for lucky draw entry!",
+    step4Desc:     "5 Stars = Free T-Shirt 🎁  |  10 Stars = Free Clothing Set 🏆  |  Rate us on Meesho to enter monthly lucky draw!",
     shopUrl:       "https://www.meesho.com/VistaraEssentials?_ms=3.0.1",
     visitShop:     "Visit Our Meesho Store →",
 
     // ── Share & Win ───────────────────────────────────────────────────
-    shareTitle:    "Share Your Review & Win!",
-    shareDesc:     "Rate our product on Meesho, share the screenshot on WhatsApp or Instagram, and enter our monthly lucky draw for prizes worth ₹500+",
-    prize1:        "1st Prize: ₹500 Gift Voucher",
-    prize2:        "2nd Prize: Free Premium Product",
-    prize3:        "3rd Prize: Extra Reward Stars",
-    shareWhatsapp: "📲 Share on WhatsApp to Enter",
+    shareTitle:    "Rate Us on Meesho & Win!",
+    shareDesc:     "Give us a 5⭐ rating on Meesho, upload the screenshot below — we pick 1 winner every month and send a FREE product worth ₹199 to their address!",
+    prize1:        "🎁 Winner gets a FREE Boys T-Shirt delivered",
+    prize2:        "🗓️ 1 winner picked every month",
+    prize3:        "📲 Upload rating screenshot to enter",
+    shareWhatsapp: "📲 Upload Rating Screenshot to Enter Draw",
 
     // ── Support / Contact ─────────────────────────────────────────────
     supportTitle:      "Need Help? Contact Us on WhatsApp",
-    supportDesc:       "If your stars haven't appeared after 15 days, or you've reached 5/10 stars and want to claim your reward — message us on WhatsApp with your token",
+    supportDesc:       "Stars not showing after 7 days of delivery? Or reached 5/10 stars and ready to claim your free product? Message us on WhatsApp with your token",
     supportTokenLabel: "Your Reward Token",
     supportStep1:      "After submitting, you receive a Reward Token (e.g. VST-1234) — save it",
     supportStep2:      "Open WhatsApp → tap our number → send your Token + Email",
@@ -204,9 +204,9 @@ const translations = {
 
     // ── Milestone banner ──────────────────────────────────────────────
     milestone5Title: "🎉 You've Reached 5 Stars!",
-    milestone5Msg:   "Your FREE GIFT is ready! Tap below to claim via WhatsApp",
+    milestone5Msg:   "Your FREE Boys T-Shirt (₹199) is ready! Tap below to claim via WhatsApp",
     milestone10Title:"🏆 You've Reached 10 Stars!",
-    milestone10Msg:  "Your PREMIUM PRIZE is ready! Tap below to claim via WhatsApp",
+    milestone10Msg:  "Your FREE Kids Clothing Set (₹399) is ready! Tap below to claim via WhatsApp",
 
   },
 
@@ -219,22 +219,22 @@ const translations = {
     // Hero Section
     heroTitle1: "पाएं अपने",
     heroHighlight: "रिवॉर्ड स्टार",
-    heroSubtitle: "हर खरीदारी पर रिवॉर्ड कमाएं। हर ऑर्डर आपको एक्सक्लूसिव गिफ्ट के करीब लाता है!",
+    heroSubtitle: "हर Meesho ऑर्डर पर 1 स्टार। 5 स्टार इकट्ठा करें → मुफ्त बॉयज़ टी-शर्ट पाएं (₹199 की कीमत)!",
     heroCta: "ऑर्डर जमा करें",
 
     // Hero Badges
     badge1: "1 ऑर्डर = 1 स्टार",
-    badge2: "5 स्टार = फ्री गिफ्ट",
+    badge2: "5 स्टार = फ्री टी-शर्ट",
     badge3: "सुरक्षित और सत्यापित",
 
     // How It Works
     howItWorksTitle: "यह कैसे काम करता है",
     howCard1Title: "1 ऑर्डर = 1 स्टार",
     howCard1Desc: "हर खरीदारी पर आपको एक रिवॉर्ड स्टार मिलता है",
-    howCard2Title: "5 स्टार = फ्री गिफ्ट",
-    howCard2Desc: "5 स्टार इकट्ठा करें और पहला रिवॉर्ड गिफ्ट पाएं",
-    howCard3Title: "10 स्टार = प्रीमियम गिफ्ट",
-    howCard3Desc: "10 स्टार पर एक्सक्लूसिव प्रीमियम गिफ्ट पाएं",
+    howCard2Title: "5 स्टार = फ्री टी-शर्ट",
+    howCard2Desc: "5 स्टार इकट्ठा करें → मुफ्त बॉयज़ टी-शर्ट (₹199) घर पर डिलीवर होगी",
+    howCard3Title: "10 स्टार = प्रीमियम सेट",
+    howCard3Desc: "10 स्टार → मुफ्त किड्स क्लोदिंग सेट (₹399) — हमारा सबसे बड़ा इनाम!",
 
     // Form Section
     formTitle: "अपना ऑर्डर जमा करें",
@@ -293,8 +293,8 @@ const translations = {
     trustTitle: "Vistara Essentials पर भरोसा क्यों?",
     trust1Title: "सुरक्षित और भरोसेमंद",
     trust1Desc: "आपका डेटा एन्क्रिप्टेड और सुरक्षित है",
-    trust2Title: "ग्राहकों का भरोसा",
-    trust2Desc: "Meesho खरीदारों का बढ़ता समुदाय जो असली रिवॉर्ड कमा रहा है",
+    trust2Title: "असली खरीदार, असली इनाम",
+    trust2Desc: "हर रिवॉर्ड हम खुद भेजते हैं — कोई बिचौलिया नहीं, कोई झूठा वादा नहीं",
     trust3Title: "सत्यापित रिवॉर्ड",
     trust3Desc: "Vistara Essentials का 100% प्रामाणिक रिवॉर्ड प्रोग्राम",
 
@@ -320,9 +320,9 @@ const translations = {
     milestoneMax: "बधाई हो! आपने सभी रिवॉर्ड अनलॉक कर लिए! 🏆",
     tiersTitle: "रिवॉर्ड स्तर",
     tier5Name: "5 स्टार",
-    tier5Reward: "फ्री गिफ्ट",
+    tier5Reward: "फ्री बॉयज़ टी-शर्ट (₹199)",
     tier10Name: "10 स्टार",
-    tier10Reward: "प्रीमियम गिफ्ट",
+    tier10Reward: "फ्री किड्स क्लोदिंग सेट (₹399)",
     starWord: "स्टार",
     starsWord: "स्टार",
     onlyMore: "केवल",
@@ -367,7 +367,7 @@ const translations = {
     statusUnderReview:    "डिलीवरी हुई — कूलिंग पीरियड में",
     statusRejected:       "अस्वीकृत ऑर्डर",
     pendingNote:          "⏳ आपका ऑर्डर सत्यापित हो रहा है। डिलीवरी पुष्टि के बाद स्टार मिलेंगे।",
-    underReviewNote:      "🔍 डिलीवरी पुष्टि हो गई! रिटर्न विंडो बंद होने के 10-14 दिन में स्टार मिलेंगे।",
+    underReviewNote:      "🔍 डिलीवरी कन्फर्म! आपका स्टार 7 दिन में मिलेगा।",
     pendingLabel:         "लंबित",
     underReviewLabel:     "समीक्षा में",
     approvedLabel:        "स्वीकृत",
@@ -386,23 +386,23 @@ const translations = {
     step2Title:    "ऑर्डर करें",
     step2Desc:     "हमारी Meesho स्टोर से कोई भी प्रोडक्ट ऑर्डर करें और खरीदारी के बाद यहाँ ऑर्डर ID जमा करें",
     step3Title:    "स्टार पाएं",
-    step3Desc:     "ऑर्डर स्क्रीनशॉट अपलोड करें। डिलीवरी कन्फर्म होने के 15 दिन में स्टार मिलेगा",
+    step3Desc:     "यहाँ ऑर्डर ID जमा करें। डिलीवरी कन्फर्म होने के 7 दिन में स्टार मिलेगा",
     step4Title:    "अमेज़िंग पुरस्कार जीतें",
-    step4Desc:     "5 स्टार = फ्री गिफ्ट 🎁  |  10 स्टार = प्रीमियम पुरस्कार 🏆  |  रेटिंग दें और लकी ड्रा में शामिल हों!",
+    step4Desc:     "5 स्टार = फ्री टी-शर्ट 🎁  |  10 स्टार = फ्री क्लोदिंग सेट 🏆  |  Meesho पर रेटिंग दें → मंथली लकी ड्रा में शामिल हों!",
     shopUrl:       "https://www.meesho.com/VistaraEssentials?_ms=3.0.1",
     visitShop:     "हमारी Meesho स्टोर देखें →",
 
     // ── Share & Win ───────────────────────────────────────────────────
-    shareTitle:    "रिव्यू शेयर करें और जीतें!",
-    shareDesc:     "Meesho पर हमारे प्रोडक्ट को रेट करें, स्क्रीनशॉट WhatsApp या Instagram पर शेयर करें, और ₹500+ पुरस्कार के लिए मंथली लकी ड्रा में शामिल हों",
-    prize1:        "पहला पुरस्कार: ₹500 गिफ्ट वाउचर",
-    prize2:        "दूसरा पुरस्कार: फ्री प्रीमियम प्रोडक्ट",
-    prize3:        "तीसरा पुरस्कार: एक्स्ट्रा रिवॉर्ड स्टार",
-    shareWhatsapp: "📲 WhatsApp पर शेयर करें और शामिल हों",
+    shareTitle:    "Meesho पर रेटिंग दें और जीतें!",
+    shareDesc:     "Meesho पर 5⭐ रेटिंग दें, नीचे स्क्रीनशॉट अपलोड करें — हम हर महीने 1 विजेता को उनके पते पर मुफ्त प्रोडक्ट (₹199) भेजते हैं!",
+    prize1:        "🎁 विजेता को फ्री बॉयज़ टी-शर्ट डिलीवर होगी",
+    prize2:        "🗓️ हर महीने 1 विजेता चुना जाता है",
+    prize3:        "📲 रेटिंग स्क्रीनशॉट अपलोड करें और शामिल हों",
+    shareWhatsapp: "📲 रेटिंग स्क्रीनशॉट अपलोड करें",
 
     // ── Support / Contact ─────────────────────────────────────────────
     supportTitle:      "मदद चाहिए? WhatsApp पर हमसे बात करें",
-    supportDesc:       "अगर 15 दिन बाद भी स्टार नहीं आया, या 5/10 स्टार पूरे हो गए और रिवॉर्ड क्लेम करना है — अपना टोकन लेकर WhatsApp पर मैसेज करें",
+    supportDesc:       "डिलीवरी के 7 दिन बाद भी स्टार नहीं आया? या 5/10 स्टार पूरे हो गए और फ्री प्रोडक्ट क्लेम करना है? टोकन लेकर WhatsApp पर मैसेज करें",
     supportTokenLabel: "आपका रिवॉर्ड टोकन",
     supportStep1:      "सबमिट करने के बाद आपको एक रिवॉर्ड टोकन मिलेगा (जैसे VST-1234) — इसे सेव करें",
     supportStep2:      "WhatsApp खोलें → हमारा नंबर टैप करें → टोकन + ईमेल भेजें",
@@ -412,9 +412,9 @@ const translations = {
 
     // ── Milestone banner ──────────────────────────────────────────────
     milestone5Title: "🎉 आपने 5 स्टार पा लिए!",
-    milestone5Msg:   "आपका फ्री गिफ्ट तैयार है! WhatsApp पर क्लेम करें",
+    milestone5Msg:   "आपकी फ्री बॉयज़ टी-शर्ट (₹199) तैयार है! WhatsApp पर क्लेम करें",
     milestone10Title:"🏆 आपने 10 स्टार पा लिए!",
-    milestone10Msg:  "आपका प्रीमियम पुरस्कार तैयार है! WhatsApp पर क्लेम करें",
+    milestone10Msg:  "आपका फ्री किड्स क्लोदिंग सेट (₹399) तैयार है! WhatsApp पर क्लेम करें",
 
   },
     // Steps section
@@ -430,12 +430,12 @@ const translations = {
     step4Desc: "5 स्टार पर फ्री गिफ्ट और 10 स्टार पर प्रीमियम पुरस्कार। अपना टोकन लेकर WhatsApp पर हमसे संपर्क करें",
 
     // Share & Win
-    shareTitle: "शेयर करें और जीतें अमेज़िंग पुरस्कार!",
-    shareDesc: "अपना रेटिंग स्क्रीनशॉट WhatsApp, Instagram या Facebook पर शेयर करें — ₹500+ के एक्सक्लूसिव पुरस्कार के लिए मंथली लकी ड्रा में शामिल हों",
-    prize1: "पहला पुरस्कार: ₹500 गिफ्ट वाउचर",
-    prize2: "दूसरा पुरस्कार: फ्री प्रीमियम प्रोडक्ट",
-    prize3: "तीसरा पुरस्कार: एक्स्ट्रा रिवॉर्ड स्टार",
-    shareWhatsapp: "WhatsApp पर शेयर करें और शामिल हों",
+    shareTitle: "Meesho पर रेटिंग दें और जीतें!",
+    shareDesc: "Meesho पर 5⭐ रेटिंग दें, नीचे स्क्रीनशॉट अपलोड करें — हम हर महीने 1 विजेता को मुफ्त प्रोडक्ट (₹199) भेजते हैं!",
+    prize1: "🎁 विजेता को फ्री बॉयज़ टी-शर्ट डिलीवर होगी",
+    prize2: "🗓️ हर महीने 1 विजेता चुना जाता है",
+    prize3: "📲 रेटिंग स्क्रीनशॉट अपलोड करें और शामिल हों",
+    shareWhatsapp: "📲 रेटिंग स्क्रीनशॉट अपलोड करें",
 
     // Support section
     supportTitle: "मदद चाहिए? हम यहाँ हैं!",
@@ -448,9 +448,9 @@ const translations = {
     // Milestone banner
     claimWhatsapp: "WhatsApp पर क्लेम करें",
     milestone5Title: "🎉 5 स्टार हो गए!",
-    milestone5Msg: "आपने फ्री गिफ्ट अनलॉक कर लिया! नीचे टैप करके WhatsApp पर क्लेम करें",
+    milestone5Msg: "आपकी फ्री बॉयज़ टी-शर्ट (₹199) रेडी है! नीचे टैप करके WhatsApp पर क्लेम करें",
     milestone10Title: "🏆 10 स्टार हो गए!",
-    milestone10Msg: "आपने प्रीमियम पुरस्कार अनलॉक कर लिया! WhatsApp पर क्लेम करें",
+    milestone10Msg: "आपका फ्री किड्स क्लोदिंग सेट (₹399) रेडी है! WhatsApp पर क्लेम करें",
 
 
 };
